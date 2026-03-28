@@ -1,28 +1,83 @@
 <div class="container-fluid p-4">
+    <!-- Header -->
+    <div class="d-flex align-items-center mb-4">
+        <div class="bg-white p-2 rounded-circle shadow-sm me-3" style="width: 45px; height: 45px; display: flex; align-items: center; justify-content: center;">
+            <i class="fa-solid fa-bullhorn text-danger fs-5"></i>
+        </div>
+        <div>
+            <h4 class="fw-bold mb-0 text-dark">จัดการแคมเปญและโปรโมชั่น</h4>
+            <small class="text-muted">กำหนดสิทธิพิเศษ ส่วนลด และค่าคอมมิชชั่นสำหรับผู้แนะนำ</small>
+        </div>
+    </div>
+
     <!-- Navigation Tabs -->
     <ul class="nav nav-pills mb-4 bg-white p-2 rounded shadow-sm border" id="promoMainTab" role="tablist">
         <li class="nav-item" role="presentation">
-            <button class="nav-link active fw-bold px-4" id="tab-promo-btn" data-bs-toggle="pill" data-bs-target="#tab-promo" type="button" onclick="setTimeout(drawPromoGanttChart, 200)">
-                <i class="fa-solid fa-bullhorn me-2"></i> แคมเปญ / โปรโมชั่น
+            <!-- 🌟 แท็บ Dashboard สรุปผล 🌟 -->
+            <button class="nav-link active fw-bold px-4" id="tab-dashboard-btn" data-bs-toggle="pill" data-bs-target="#tab-dashboard" type="button" onclick="renderMainPromoDashboard()">
+                <i class="fa-solid fa-chart-line me-2"></i> Dashboard สรุปผล
             </button>
         </li>
         <li class="nav-item" role="presentation">
-            <button class="nav-link fw-bold px-4" id="tab-referrer-btn" data-bs-toggle="pill" data-bs-target="#tab-referrer" type="button" onclick="setTimeout(drawReferrerGanttChart, 200)">
+            <button class="nav-link fw-bold px-4" id="tab-promo-btn" data-bs-toggle="pill" data-bs-target="#tab-promo" type="button">
+                <i class="fa-solid fa-ticket me-2"></i> แคมเปญ / โปรโมชั่น
+            </button>
+        </li>
+        <li class="nav-item" role="presentation">
+            <button class="nav-link fw-bold px-4" id="tab-referrer-btn" data-bs-toggle="pill" data-bs-target="#tab-referrer" type="button">
                 <i class="fa-solid fa-users me-2"></i> โค้ดอินฟลู / ผู้แนะนำ
             </button>
         </li>
     </ul>
 
     <div class="tab-content" id="promoMainTabContent">
+        
+        <!-- ==============================================
+             TAB 0: DASHBOARD สรุปสถิติและต้นทุน
+             ============================================== -->
+        <div class="tab-pane fade show active" id="tab-dashboard" role="tabpanel">
+            <!-- Cards สรุปภาพรวม -->
+            <div id="promoOverviewCards" class="row g-3 mb-4">
+                <!-- JS จะสร้าง Card สรุปยอดเงินตรงนี้ -->
+            </div>
+
+            <!-- ตารางสรุปรายแคมเปญ -->
+            <div class="card shadow-sm border-0">
+                <div class="card-header bg-white py-3 border-bottom d-flex justify-content-between align-items-center">
+                    <h6 class="mb-0 fw-bold text-dark"><i class="fa-solid fa-ranking-star text-warning me-2"></i> ประสิทธิภาพแยกตามแคมเปญ / ผู้แนะนำ</h6>
+                </div>
+                <div class="card-body p-0">
+                    <div class="table-responsive">
+                        <table class="table table-hover align-middle mb-0">
+                            <thead class="table-light">
+                                <tr>
+                                    <th class="ps-4">ชื่อแคมเปญ / โค้ด</th>
+                                    <th>ประเภท</th>
+                                    <th class="text-center">Leads ที่เข้ามา</th>
+                                    <th class="text-center">นำไปใช้จริง (Conversion)</th>
+                                    <th class="text-end text-danger">ส่วนลดที่เสียไป</th>
+                                    <th class="text-end text-warning text-dark">ค่าคอมฯ ผู้แนะนำ</th>
+                                    <th class="text-end pe-4 fw-bold">ต้นทุนรวม (Cost)</th>
+                                </tr>
+                            </thead>
+                            <tbody id="dashboardPromoTableBody">
+                                <!-- JS จะสร้างแถวข้อมูลตรงนี้ -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+
         <!-- ==============================================
              TAB 1: PROMOTIONS
              ============================================== -->
-        <div class="tab-pane fade show active" id="tab-promo" role="tabpanel">
+        <div class="tab-pane fade" id="tab-promo" role="tabpanel">
             <!-- Header & Add Button -->
             <div class="d-flex justify-content-between align-items-center mb-4">
                 <div>
-                    <h5 class="mb-0 fw-bold text-dark"><i class="fa-solid fa-bullhorn text-danger me-2"></i> ปฏิทินโปรโมชั่น (Promotions)</h5>
-                    <small class="text-muted">จัดการโปรโมชั่นและแคมเปญต่างๆ ระบบจะนำไปผูกกับหน้าข้อมูลผู้สมัครโดยอัตโนมัติ (ซ่อนเมื่อหมดเวลา)</small>
+                    <h5 class="mb-0 fw-bold text-dark">จัดการโปรโมชั่น (Promotions)</h5>
+                    <small class="text-muted">ลดค่าใช้จ่ายให้กับผู้สมัครโดยตรง</small>
                 </div>
                 <button class="btn btn-danger shadow-sm fw-bold" onclick="openPromoModal()">
                     <i class="fa-solid fa-plus"></i> เพิ่มโปรโมชั่น
@@ -52,9 +107,10 @@
                                 <tr>
                                     <th class="text-center ps-3" style="width: 80px;">ลำดับ</th>
                                     <th>รหัสโปรโมชั่น</th>
-                                    <th>ชื่อแคมเปญ / โปรโมชั่น</th>
+                                    <th>ชื่อแคมเปญ</th>
+                                    <th class="text-end">ส่วนลด (บาท)</th>
                                     <th>ระยะเวลา (Start - End)</th>
-                                    <th>สถานะระบบ</th>
+                                    <th>สถานะ</th>
                                     <th class="text-center pe-3">จัดการ</th>
                                 </tr>
                             </thead>
@@ -74,8 +130,8 @@
             <!-- Header & Add Button -->
             <div class="d-flex justify-content-between align-items-center mb-4">
                 <div>
-                    <h5 class="mb-0 fw-bold text-dark"><i class="fa-solid fa-users text-primary me-2"></i> โค้ดอินฟลู / ผู้แนะนำ (Referrers)</h5>
-                    <small class="text-muted">สร้างโค้ดสำหรับ Influencer หรือบุคคลที่แนะนำ เมื่อถึงเวลาหมดเขต ระบบจะซ่อนตัวเลือกนี้ในฟอร์มประเมินให้อัตโนมัติ</small>
+                    <h5 class="mb-0 fw-bold text-dark">โค้ดอินฟลู / ผู้แนะนำ (Referrers)</h5>
+                    <small class="text-muted">ให้ส่วนลดผู้สมัคร และจ่ายค่าคอมมิชชั่นให้ผู้แนะนำ</small>
                 </div>
                 <button class="btn btn-primary shadow-sm fw-bold" onclick="openReferrerModal()">
                     <i class="fa-solid fa-plus"></i> เพิ่มผู้แนะนำใหม่
@@ -105,9 +161,11 @@
                                 <tr>
                                     <th class="text-center ps-3" style="width: 80px;">ลำดับ</th>
                                     <th>รหัสอ้างอิง</th>
-                                    <th>ชื่อผู้แนะนำ / โค้ดโปรโมท</th>
-                                    <th>ระยะเวลา (Start - End)</th>
-                                    <th>สถานะระบบ</th>
+                                    <th>ชื่อผู้แนะนำ / โค้ด</th>
+                                    <th class="text-end">ส่วนลดลูกค้า</th>
+                                    <th class="text-end">ค่าคอมฯ</th>
+                                    <th>ระยะเวลา</th>
+                                    <th>สถานะ</th>
                                     <th class="text-center pe-3">จัดการ</th>
                                 </tr>
                             </thead>
@@ -151,9 +209,15 @@
                         </div>
                     </div>
 
+                    <!-- 🌟 เพิ่มช่องส่วนลด 🌟 -->
+                    <div class="mb-3 p-3 bg-danger bg-opacity-10 border border-danger border-opacity-25 rounded">
+                        <label class="form-label fw-bold text-danger small"><i class="fa-solid fa-hand-holding-dollar me-1"></i> ส่วนลดให้ผู้สมัคร (บาท / เคส)</label>
+                        <input type="number" class="form-control border-danger text-danger fw-bold" name="discountAmount" id="promoDiscount" placeholder="เช่น 500" value="0" min="0">
+                    </div>
+
                     <div class="mb-3">
                         <label class="form-label fw-bold small text-muted">รายละเอียด (Description)</label>
-                        <textarea class="form-control" name="description" id="promoDesc" rows="3" placeholder="เงื่อนไข ค่าตอบแทน หรือข้อมูลแคมเปญ..."></textarea>
+                        <textarea class="form-control" name="description" id="promoDesc" rows="2" placeholder="เงื่อนไข หรือข้อมูลแคมเปญ..."></textarea>
                     </div>
 
                     <div class="mb-3">
@@ -166,7 +230,7 @@
                 </div>
                 <div class="modal-footer border-top bg-light">
                     <button type="button" class="btn btn-outline-secondary px-4 fw-bold" data-bs-dismiss="modal">ยกเลิก</button>
-                    <button type="submit" class="btn btn-danger px-5 fw-bold">บันทึกโปรโมชั่น</button>
+                    <button type="submit" class="btn btn-danger px-5 fw-bold">บันทึกข้อมูล</button>
                 </div>
             </form>
         </div>
@@ -202,9 +266,20 @@
                         </div>
                     </div>
 
-                    <div class="mb-3">
-                        <label class="form-label fw-bold small text-muted">รายละเอียด (Description)</label>
-                        <textarea class="form-control" name="description" id="refDesc" rows="3" placeholder="ระบุช่องทาง โซเชียล หรือรายละเอียดเพิ่มเติม..."></textarea>
+                    <!-- 🌟 เพิ่มช่องส่วนลดและค่าคอมมิชชั่น 🌟 -->
+                    <div class="row mb-3">
+                        <div class="col-6">
+                            <div class="p-2 bg-danger bg-opacity-10 border border-danger border-opacity-25 rounded h-100">
+                                <label class="form-label fw-bold text-danger small" style="font-size: 0.7rem;"><i class="fa-solid fa-tag me-1"></i> ส่วนลดให้ผู้สมัคร (บาท)</label>
+                                <input type="number" class="form-control form-control-sm border-danger text-danger fw-bold" name="discountAmount" id="refDiscount" placeholder="เช่น 300" value="0" min="0">
+                            </div>
+                        </div>
+                        <div class="col-6">
+                            <div class="p-2 bg-warning bg-opacity-25 border border-warning border-opacity-50 rounded h-100">
+                                <label class="form-label fw-bold text-warning-emphasis small" style="font-size: 0.7rem;"><i class="fa-solid fa-coins me-1"></i> ค่าคอมฯ ผู้แนะนำ (บาท)</label>
+                                <input type="number" class="form-control form-control-sm border-warning text-dark fw-bold" name="commissionAmount" id="refCommission" placeholder="เช่น 200" value="0" min="0">
+                            </div>
+                        </div>
                     </div>
 
                     <div class="mb-3">
@@ -217,7 +292,7 @@
                 </div>
                 <div class="modal-footer border-top bg-light">
                     <button type="button" class="btn btn-outline-secondary px-4 fw-bold" data-bs-dismiss="modal">ยกเลิก</button>
-                    <button type="submit" class="btn btn-primary px-5 fw-bold">บันทึกผู้แนะนำ</button>
+                    <button type="submit" class="btn btn-primary px-5 fw-bold">บันทึกข้อมูล</button>
                 </div>
             </form>
         </div>
