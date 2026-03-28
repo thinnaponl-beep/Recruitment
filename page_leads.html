@@ -5,9 +5,9 @@
     </div>
 
     <!-- Data Table -->
-    <div class="card shadow-sm border-0 mb-4">
+    <div class="card shadow-sm border-0 mb-4 rounded-4">
         <!-- Header ขาวๆ พร้อมช่องกรองวันที่ -->
-        <div class="card-header bg-white py-3 border-bottom d-flex justify-content-between align-items-center flex-wrap gap-3">
+        <div class="card-header bg-white py-3 border-bottom d-flex justify-content-between align-items-center flex-wrap gap-3" style="border-top-left-radius: 16px; border-top-right-radius: 16px;">
             <h5 class="mb-0 fw-bold text-dark"><i class="fa-solid fa-list-ul text-primary me-2"></i> รายชื่อผู้สมัคร</h5>
             
             <div class="d-flex align-items-center gap-2">
@@ -53,18 +53,18 @@
      ======================================================== -->
 <div class="modal fade" id="addLeadModal" data-bs-backdrop="static" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog modal-xl modal-dialog-centered"> 
-        <div class="modal-content border-0 shadow-lg bg-light">
+        <div class="modal-content border-0 shadow-lg bg-light rounded-4">
             <form id="addLeadForm">
                 <!-- ซ่อน Input ID ไว้เช็คว่าเป็นสถานะ แก้ไข หรือ เพิ่มใหม่ -->
                 <input type="hidden" id="actionLeadId" name="leadId">
                 
                 <!-- HEADER TOOLBAR -->
-                <div class="position-relative bg-white border-bottom p-4 d-flex align-items-center justify-content-between rounded-top">
+                <div class="position-relative bg-white border-bottom p-4 d-flex align-items-center justify-content-between" style="border-top-left-radius: 16px; border-top-right-radius: 16px;">
                     <div class="d-flex align-items-center gap-3">
-                        <div class="bg-warning bg-opacity-10 text-warning rounded-circle d-flex align-items-center justify-content-center" style="width: 45px; height: 45px;">
+                        <div class="bg-primary bg-opacity-10 text-primary rounded-circle d-flex align-items-center justify-content-center" style="width: 48px; height: 48px;">
                             <i class="fa-solid fa-user-pen fs-5"></i>
                         </div>
-                        <h4 class="mb-0 fw-bold" id="leadModalTitle">เพิ่มผู้สมัครใหม่</h4>
+                        <h4 class="mb-0 fw-bold text-dark" id="leadModalTitle">เพิ่มผู้สมัครใหม่</h4>
                     </div>
 
                     <button type="button" class="btn-close m-0" data-bs-dismiss="modal" aria-label="Close"></button>
@@ -76,14 +76,15 @@
                         
                         <!-- COLUMN 1: BASIC INFO -->
                         <div class="col-lg-6 col-md-12">
-                            <div class="bg-white p-4 rounded shadow-sm h-100 border-top border-primary border-4">
+                            <!-- 🌟 ปรับดีไซน์ขอบการ์ดให้ละมุนและเข้ากับธีมใหม่ -->
+                            <div class="bg-white p-4 rounded-4 shadow-sm h-100 border border-light">
                                 <h6 class="fw-bold text-primary mb-4"><i class="fa-solid fa-address-card me-2"></i>1. ข้อมูลพื้นฐาน (Basic Info)</h6>
                                 
                                 <div class="mb-3">
                                     <label class="form-label fw-bold small text-muted">วันที่สัมภาษณ์/บันทึก <span class="text-danger">*</span></label>
                                     <div class="input-group">
-                                        <span class="input-group-text bg-light"><i class="fa-regular fa-calendar"></i></span>
-                                        <input type="text" class="form-control" name="recordDate" id="recordDate" placeholder="DD/MM/YYYY" required>
+                                        <span class="input-group-text bg-light border-end-0"><i class="fa-regular fa-calendar text-muted"></i></span>
+                                        <input type="text" class="form-control border-start-0" name="recordDate" id="recordDate" placeholder="DD/MM/YYYY" required>
                                     </div>
                                 </div>
 
@@ -108,10 +109,10 @@
                                     <label class="form-label fw-bold small text-muted">ประเภทผู้สมัคร <span class="text-danger">*</span></label>
                                     <div class="d-flex gap-2">
                                         <input type="radio" class="btn-check" name="jobType" id="typeMaid" value="แม่บ้าน" checked>
-                                        <label class="btn btn-outline-primary flex-fill" for="typeMaid">คุณแม่บ้าน</label>
+                                        <label class="btn btn-outline-primary flex-fill rounded-3" for="typeMaid">คุณแม่บ้าน</label>
                                       
                                         <input type="radio" class="btn-check" name="jobType" id="typeTech" value="ช่างแอร์">
-                                        <label class="btn btn-outline-primary flex-fill" for="typeTech">ช่างแอร์</label>
+                                        <label class="btn btn-outline-primary flex-fill rounded-3" for="typeTech">ช่างแอร์</label>
                                     </div>
                                 </div>
                             </div>
@@ -119,16 +120,16 @@
 
                         <!-- COLUMN 2: PERSONAL DETAILS -->
                         <div class="col-lg-6 col-md-12">
-                            <div class="bg-white p-4 rounded shadow-sm h-100 border-top border-success border-4">
+                            <!-- 🌟 ปรับดีไซน์ขอบการ์ดให้ละมุนและเข้ากับธีมใหม่ -->
+                            <div class="bg-white p-4 rounded-4 shadow-sm h-100 border border-light">
                                 <h6 class="fw-bold text-success mb-4"><i class="fa-solid fa-user-tag me-2"></i>2. ข้อมูลส่วนตัว (Personal Details)</h6>
                                 
                                 <div class="row mb-3">
                                     <div class="col-6">
                                         <label class="form-label fw-bold small text-muted">สถานะติดต่อ</label>
+                                        <!-- 🌟 เปลี่ยนจากตัวเลือกล็อกตายตัว เป็นการโหลดข้อมูลอัตโนมัติ 🌟 -->
                                         <select class="form-select" name="contactStatus" id="contactStatus">
-                                            <option value="" selected>เลือก...</option>
-                                            <option value="ติดต่อได้">ติดต่อได้</option>
-                                            <option value="ติดต่อไม่ได้">ติดต่อไม่ได้</option>
+                                            <option value="" selected>โหลดสถานะติดต่อ...</option>
                                         </select>
                                     </div>
                                     <div class="col-6">
@@ -186,12 +187,12 @@
 
                                 <div class="mb-3">
                                     <label class="form-label fw-bold small text-muted">สถานะ Applicant</label>
-                                    <div class="d-flex gap-2 p-1 bg-light rounded" style="width: fit-content;">
+                                    <div class="d-flex gap-2 p-1 bg-light rounded-3 border" style="width: fit-content;">
                                         <input type="radio" class="btn-check" name="isApplicant" id="appYes" value="มี">
-                                        <label class="btn btn-sm btn-outline-secondary border-0 fw-bold" for="appYes">มี</label>
+                                        <label class="btn btn-sm btn-outline-secondary border-0 fw-bold rounded-2 px-3" for="appYes">มี</label>
                                       
                                         <input type="radio" class="btn-check" name="isApplicant" id="appNo" value="ไม่มี" checked>
-                                        <label class="btn btn-sm btn-outline-success border-0 fw-bold" for="appNo">ไม่มี</label>
+                                        <label class="btn btn-sm btn-outline-success border-0 fw-bold rounded-2 px-3" for="appNo">ไม่มี</label>
                                     </div>
                                 </div>
                             </div>
@@ -199,17 +200,17 @@
                     </div>
 
                     <!-- BOTTOM SECTION: NOTES -->
-                    <div class="bg-white p-3 rounded shadow-sm border mt-4">
-                        <label class="form-label fw-bold small text-dark"><i class="fa-solid fa-file-lines text-muted me-2"></i> โน้ตเบื้องต้น</label>
-                        <textarea class="form-control bg-light" name="notes" id="notes" rows="3" placeholder="สรุปเนื้อหาสัมภาษณ์ หรือบันทึกเพิ่มเติม..."></textarea>
+                    <div class="bg-white p-4 rounded-4 shadow-sm border border-light mt-4">
+                        <label class="form-label fw-bold text-dark mb-2"><i class="fa-solid fa-file-lines text-muted me-2"></i> โน้ตเบื้องต้น</label>
+                        <textarea class="form-control bg-light border-0" name="notes" id="notes" rows="3" placeholder="สรุปเนื้อหาสัมภาษณ์ หรือบันทึกเพิ่มเติม..."></textarea>
                     </div>
 
                 </div>
 
                 <!-- FOOTER -->
-                <div class="bg-white border-top p-4 d-flex justify-content-between rounded-bottom">
+                <div class="bg-white border-top p-4 d-flex justify-content-between" style="border-bottom-left-radius: 16px; border-bottom-right-radius: 16px;">
                     <button type="button" class="btn text-danger fw-bold" data-bs-dismiss="modal">ยกเลิก (Discard)</button>
-                    <button type="submit" class="btn btn-primary px-5 fw-bold shadow-sm"><i class="fa-solid fa-floppy-disk me-2"></i> บันทึกข้อมูล (Save)</button>
+                    <button type="submit" class="btn btn-primary px-5 fw-bold shadow-sm rounded-pill"><i class="fa-solid fa-floppy-disk me-2"></i> บันทึกข้อมูล (Save)</button>
                 </div>
             </form>
         </div>
