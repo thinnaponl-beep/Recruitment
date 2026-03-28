@@ -1,0 +1,94 @@
+<style>
+    @import url('https://fonts.googleapis.com/css2?family=Sarabun:wght@300;400;500;600;700&display=swap');
+
+    :root {
+        --primary-blue: #3b82f6;
+        --success-green: #10b981;
+        --purple-accent: #8b5cf6;
+        --border-color: #e5e7eb;
+        --text-main: #374151;
+        --bg-light: #f3f4f6;
+    }
+
+    body {
+        font-family: 'Sarabun', sans-serif;
+        background-color: var(--bg-light);
+        color: var(--text-main);
+        overflow-x: hidden;
+    }
+
+    /* Layout & Sidebar */
+    #wrapper { display: flex; width: 100%; height: 100vh; overflow: hidden; }
+    #sidebar { width: 250px; background: #1e293b; color: white; height: 100vh; overflow-y: auto; transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1); z-index: 1000; }
+    .sidebar-header { padding: 20px; background: #0f172a; border-bottom: 1px solid #334155; transition: all 0.3s; white-space: nowrap; overflow: hidden; }
+    .sidebar-header h3 { font-size: 1.2rem; font-weight: 700; margin: 0; }
+    #sidebar ul.components { padding: 15px 0; }
+    #sidebar ul li a { padding: 12px 20px; font-size: 1rem; display: block; color: #cbd5e1; text-decoration: none; white-space: nowrap; overflow: hidden; transition: all 0.3s; }
+    #sidebar ul li a:hover, #sidebar ul li.active > a { background: #334155; color: #38bdf8; border-left: 4px solid #38bdf8; }
+    
+    /* 🌟 Collapsed Sidebar Styles (ปุ่มแฮมเบอร์เกอร์) */
+    #sidebar.collapsed { width: 80px; }
+    #sidebar.collapsed .sidebar-header { padding: 20px 0; text-align: center; }
+    #sidebar.collapsed .sidebar-header h3 span { display: none; }
+    #sidebar.collapsed ul li a span { display: none; }
+    #sidebar.collapsed ul li a { padding: 12px 0; text-align: center; }
+    #sidebar.collapsed ul li a i { margin-right: 0 !important; font-size: 1.3rem; }
+
+    #content-wrapper { flex-grow: 1; height: 100vh; overflow-y: auto; display: flex; flex-direction: column; transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1); width: calc(100% - 250px); }
+    #sidebar.collapsed + #content-wrapper { width: calc(100% - 80px); }
+
+    /* P-Value Cards */
+    .p-card { border-radius: 12px; border: none; box-shadow: 0 4px 6px rgba(0,0,0,0.05); cursor: pointer; transition: 0.2s; }
+    .p-card:hover { transform: translateY(-3px); }
+    .p-card.active-filter { border: 2px solid var(--primary-blue); transform: scale(1.02); }
+    
+    .text-p100 { color: #10b981; } .bg-p100 { background-color: #d1fae5; }
+    .text-p90 { color: #3b82f6; } .bg-p90 { background-color: #dbeafe; }
+    .text-p80 { color: #f59e0b; } .bg-p80 { background-color: #fef3c7; }
+    .text-p00 { color: #ef4444; } .bg-p00 { background-color: #fee2e2; }
+
+    /* Loading Overlay */
+    #loading-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(255,255,255,0.9); z-index: 9999; display: flex; flex-direction: column; justify-content: center; align-items: center; }
+
+    /* ==============================================
+       🎨 UI Form (Modal Version)
+       นำโค้ดที่คุณชอบมาปรับให้เข้ากับ Bootstrap Modal
+       ============================================== */
+    .modal-xl { max-width: 1200px; }
+    .modal-content { border-radius: 16px; border: none; overflow: hidden; box-shadow: 0 15px 35px rgba(0,0,0,0.2); }
+    
+    .toolbar-header { padding: 1.5rem 2rem; border-bottom: 1px solid var(--border-color); display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 1rem; background: #fff; }
+    .toolbar-title { font-size: 1.25rem; font-weight: 700; display: flex; align-items: center; gap: 0.75rem; }
+    .icon-circle { background-color: #fff3e0; color: #f97316; width: 36px; height: 36px; border-radius: 50%; display: flex; align-items: center; justify-content: center; }
+    .toolbar-controls { display: flex; align-items: center; gap: 1rem; flex-wrap: wrap; }
+    
+    .control-group { display: flex; align-items: center; background: #f9fafb; padding: 0.25rem 0.5rem 0.25rem 1rem; border-radius: 8px; border: 1px solid var(--border-color); }
+    .control-group label { font-size: 0.8rem; font-weight: 600; color: #6b7280; margin-right: 0.5rem; }
+    .control-select { border: none; background: transparent; font-size: 0.875rem; font-weight: 600; cursor: pointer; padding-right: 1.5rem; }
+    .control-select:focus { box-shadow: none; }
+    .p-value-group { background: #f5f3ff; border-color: #c4b5fd; }
+    .p-value-group label, .p-value-group select { color: var(--purple-accent); font-weight: 700;}
+
+    .form-body { padding: 2rem; background-color: #fafbfc; }
+    .section-card { background: #ffffff; border-radius: 12px; padding: 1.5rem; height: 100%; box-shadow: 0 2px 4px rgba(0,0,0,0.02); border: 1px solid var(--border-color); position: relative; }
+    .section-card::before { content: ''; position: absolute; top: 0; left: 0; right: 0; height: 4px; border-top-left-radius: 12px; border-top-right-radius: 12px; }
+    .border-top-blue::before { background-color: var(--primary-blue); }
+    .border-top-green::before { background-color: var(--success-green); }
+    .border-top-purple::before { background-color: var(--purple-accent); }
+    .section-title { font-size: 0.85rem; font-weight: 700; margin-bottom: 1.5rem; }
+
+    /* Segment & Toggle */
+    .segmented-control { display: flex; gap: 10px; }
+    .segmented-control .btn { flex: 1; border: 1px solid var(--border-color); color: #6b7280; background: #fff; border-radius: 8px; font-weight: 600; font-size: 0.9rem; padding: 0.5rem; }
+    .segmented-control .btn-check:checked + .btn { border-color: var(--primary-blue); color: var(--primary-blue); background-color: rgba(59, 130, 246, 0.05); }
+
+    .applicant-toggle { display: flex; background: #f3f4f6; border-radius: 8px; padding: 4px; width: fit-content; }
+    .applicant-toggle .btn { border: none; padding: 0.3rem 1.2rem; font-size: 0.85rem; font-weight: 600; border-radius: 6px; }
+    .applicant-toggle .btn-check:checked + .btn.btn-outline-success { background-color: var(--success-green); color: white; }
+    .applicant-toggle .btn-check:checked + .btn.btn-outline-secondary { background-color: #fff; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
+
+    /* Tags */
+    .tags-container { display: flex; flex-wrap: wrap; gap: 0.5rem; margin-top: 1rem; }
+    .tag-badge { background-color: #f3f4f6; padding: 0.4rem 0.8rem; border-radius: 50rem; font-size: 0.75rem; font-weight: 500; cursor: pointer; border: 1px solid transparent; }
+    .tag-badge:hover { background-color: #e5e7eb; border-color: #d1d5db; }
+</style>
