@@ -6,7 +6,6 @@
         const userEmail = state.currentUser?.email || 'System';
         const logId = "LOG-" + new Date().getTime(); 
         
-        // 🌟 แก้ไข: จัดการเวลาให้เป็น Local Time (เวลาไทย) ป้องกันเวลาช้าไป 7 ชั่วโมง
         const now = new Date();
         const year = now.getFullYear();
         const month = String(now.getMonth() + 1).padStart(2, '0');
@@ -89,7 +88,6 @@
         const pCounts = { 'Total': qualifiedLeads.length, 'Waiting': 0, 'P100': 0, 'P90': 0, 'P80': 0, 'P50': 0, 'P00': 0 };
         const adminCounts = { 'Unassigned': 0 };
         
-        // 🌟 กรองรายชื่อแอดมิน: นำเฉพาะคนที่ไม่ใช่นักพัฒนา (is_dev !== true) มาแสดงในแถบตัวกรอง
         const displayAdmins = state.admins.filter(a => !a.is_dev);
 
         displayAdmins.forEach(a => adminCounts[a.email] = 0);
@@ -105,7 +103,6 @@
             } else {
                 let matched = state.admins.find(admin => admin.email === a || admin.name === a);
                 let key = matched ? matched.email : a;
-                // นับคะแนนเฉพาะแอดมินที่ไม่ใช่ Dev
                 if (adminCounts[key] !== undefined) adminCounts[key]++;
             }
         });
@@ -115,8 +112,9 @@
             { id: 'Waiting', label: 'รอประเมิน', count: pCounts['Waiting'], color: '#f59e0b' }, 
             { id: 'P100', label: 'P100 (ผ่าน/จอง)', count: pCounts['P100'], color: '#10b981' }, 
             { id: 'P90', label: 'P90 (รอโอนจอง)', count: pCounts['P90'], color: '#3b82f6' }, 
-            { id: 'P80', label: 'P80 (สนใจ)', count: pCounts['P80'], color: '#8b5cf6' }, 
-            { id: 'P50', label: 'P50 (ติดต่อไม่ได้)', count: pCounts['P50'], color: '#f97316' }, 
+            { id: 'P80', label: 'P80 (สนใจ รอแจ้งวันอบรม)', count: pCounts['P80'], color: '#8b5cf6' }, 
+            { id: 'P50', label: 'P50 (รอตัดสินใจ)', count: pCounts['P50'], color: '#f97316' }, 
+            { id: 'P40', label: 'P40 (ติดต่อไม่ได้)', count: pCounts['P40'], color: '#a69586' },
             { id: 'P00', label: 'P00 (ไม่ผ่าน)', count: pCounts['P00'], color: '#ef4444' } 
         ];
 
@@ -154,7 +152,6 @@
                 <button class="btn btn-sm ${state.pAdminFilter === 'Unassigned' ? 'btn-danger shadow-sm' : 'btn-outline-danger bg-white'} rounded-pill px-3 fw-bold" onclick="setAdminFilter('Unassigned')">รอจ่ายงาน (${unassignedCount})</button>
         `;
         
-        // 🌟 แสดงปุ่มกรองแอดมินเฉพาะคนที่ไม่ใช่ Dev
         displayAdmins.forEach(a => {
             const count = adminCounts[a.email] || 0;
             const isActive = state.pAdminFilter === a.email;
@@ -318,8 +315,17 @@
             else if(bgCheckVal === 'กำลังตรวจ') bgCheckDisplay = `<span class="badge bg-warning text-dark">กำลังตรวจ</span>`;
             else if(bgCheckVal.includes('ไม่ผ่าน')) bgCheckDisplay = `<span class="badge bg-danger">ไม่ผ่าน</span>`;
 
-            const ref = row.Referrer || row.referrer;
-            const referrerDisplay = ref ? `<span class="text-secondary fw-bold small">${ref}</span>` : `<span class="text-muted">-</span>`;
+            // 🌟 แมปปิ้งชื่อผู้แนะนำในตารางให้สวยงาม
+            const refId = row.Referrer || row.referrer;
+            let referrerDisplay = `<span class="text-muted">-</span>`;
+            if (refId) {
+                const matchedRef = state.referrers?.find(r => r.Ref_ID === refId);
+                if (matchedRef) {
+                    referrerDisplay = `<span class="text-secondary fw-bold small">${matchedRef.Ref_Name}</span>`;
+                } else {
+                    referrerDisplay = `<span class="text-secondary fw-bold small">${refId}</span>`; // เผื่อเป็นข้อความเก่าแบบเพื่อนแนะนำ
+                }
+            }
 
             const nts = row.Notes || row.notes || '-';
             const encodedNote = encodeURIComponent(nts);
@@ -330,6 +336,7 @@
             const fullName = row.FullName || row.full_name || row.fullname || '-';
             const phoneStr = row.Phone || row.phone || '-';
             const jobTypeStr = row.JobType || row.job_type || row.jobtype || '-';
+            const channelStr = row.Channel || row.channel || '-';
 
             return `
             <tr>
@@ -339,6 +346,7 @@
                     <div class="text-nowrap"><i class="fa-solid fa-phone text-success small"></i> ${phoneStr}</div>
                     ${chatLinkBtn}
                 </td>
+                <td><span class="badge bg-light text-dark border">${channelStr}</span></td>
                 <td><span class="badge bg-info text-dark">${jobTypeStr}</span></td>
                 <td>${pvalDisplay}</td>
                 
@@ -404,9 +412,8 @@
                     const emailCol = getSysCol(['adminemail', 'admin_email', 'Admin_Email', 'email']);
                     const nameCol = getSysCol(['adminname', 'admin_name', 'Admin_Name', 'name']);
                     const wlCol = getSysCol(['current_workload', 'Current_Workload', 'workload']);
-                    const devCol = getSysCol(['is_developer', 'Is_Developer', 'is_dev', 'isdev']); // 🌟 หาคอลัมน์ Developer
+                    const devCol = getSysCol(['is_developer', 'Is_Developer', 'is_dev', 'isdev']);
 
-                    // 🌟 กรองเฉพาะคนที่เปิด Auto และ ไม่ใช่นักพัฒนา (Dev)
                     let activeAdmins = adminData.filter(a => {
                         const val = String(a[autoCol] || '').trim().toUpperCase();
                         const isDevVal = String(a[devCol] || '').trim().toUpperCase();
@@ -477,7 +484,6 @@
             '': '❌ ดึงเคสกลับกองกลาง (รอจ่ายงาน)'
         };
         
-        // 🌟 กรองเฉพาะรายชื่อแอดมินที่ไม่ใช่นักพัฒนาไปแสดงในตัวเลือก
         state.admins.filter(a => !a.is_dev).forEach(a => { 
             adminOptions[a.email] = a.name || a.email; 
         });
@@ -579,36 +585,69 @@
                 promoSelect.value = currentPromoId;
             }
 
-            // 🌟 2. ยัดข้อมูล 'การตรวจประวัติ' ลง Dropdown 🌟
+            // 🌟 2. ยัดข้อมูล 'ผู้แนะนำ (Referrers)' ลง Dropdown 🌟
+            const referrerSelect = form.elements['referrer'] || document.getElementById('assessReferrerSelect');
+            if (referrerSelect) {
+                referrerSelect.innerHTML = '<option value="" selected>-- เลือก --</option>';
+                
+                // ดึงเฉพาะที่มีสถานะ Active มาแสดง
+                const activeReferrers = (state.referrers || []).filter(r => r.Calculated_Status === 'Active');
+                
+                activeReferrers.forEach(r => {
+                    referrerSelect.add(new Option(r.Ref_Name, r.Ref_ID)); 
+                });
+
+                const currentReferrerId = lead.Referrer || lead.referrer || '';
+                
+                if (currentReferrerId) {
+                    const isExist = activeReferrers.some(r => r.Ref_ID === currentReferrerId);
+                    
+                    if (!isExist) {
+                        // ค้นหาว่าเป็นโค้ดที่เคยมีแต่หมดอายุไปแล้วหรือเปล่า
+                        const oldRef = state.referrers?.find(r => r.Ref_ID === currentReferrerId);
+                        if (oldRef) {
+                            const opt = new Option(`${oldRef.Ref_Name} (หมดเวลา/ปิดใช้งาน)`, currentReferrerId);
+                            opt.style.color = 'red';
+                            referrerSelect.add(opt);
+                        } else {
+                            // กรณีข้อมูลเป็นข้อความเก่า (Legacy data เช่น "Walk-in" หรือ "เพื่อนแนะนำ")
+                            const opt = new Option(`${currentReferrerId} (ข้อมูลเดิม)`, currentReferrerId);
+                            opt.style.color = 'gray';
+                            referrerSelect.add(opt);
+                        }
+                    }
+                }
+                referrerSelect.value = currentReferrerId;
+            }
+
+            // 🌟 3. ยัดข้อมูล 'การตรวจประวัติ' ลง Dropdown 🌟
             const bgCheckSelect = form.elements['backgroundCheck'];
-            if (bgCheckSelect && state.initialDropdowns?.BackgroundCheck) {
+            if (bgCheckSelect && state.initialDropdowns?.BackgroundCheck && state.initialDropdowns.BackgroundCheck.length > 0) {
                 bgCheckSelect.innerHTML = '<option value="" selected>-- เลือก --</option>';
                 state.initialDropdowns.BackgroundCheck.forEach(item => {
                     bgCheckSelect.add(new Option(item, item));
                 });
             }
 
-            // 🌟 3. ยัดข้อมูล 'สถานะการอบรม' ลง Dropdown 🌟
+            // 🌟 4. ยัดข้อมูล 'สถานะการอบรม' ลง Dropdown 🌟
             const trainStatusSelect = form.elements['trainingStatus'];
-            if (trainStatusSelect && state.initialDropdowns?.TrainingStatus) {
+            if (trainStatusSelect && state.initialDropdowns?.TrainingStatus && state.initialDropdowns.TrainingStatus.length > 0) {
                 trainStatusSelect.innerHTML = '<option value="" selected>เลือก...</option>';
                 state.initialDropdowns.TrainingStatus.forEach(item => {
                     trainStatusSelect.add(new Option(item, item));
                 });
             }
 
-            // 🌟 4. ยัดข้อมูล 'โน้ตเพิ่มเติม (QuickTags)' ลงในปุ่มให้กด 🌟
+            // 🌟 5. ยัดข้อมูล 'โน้ตเพิ่มเติม (QuickTags)' ลงในปุ่มให้กด 🌟
             const tagsContainer = document.querySelector('#assessmentModal .tags-container');
-            if (tagsContainer && state.initialDropdowns?.QuickTags) {
+            if (tagsContainer && state.initialDropdowns?.QuickTags && state.initialDropdowns.QuickTags.length > 0) {
                 tagsContainer.innerHTML = state.initialDropdowns.QuickTags.map(tag => 
                     `<span class="tag-badge" onclick="appendTag(this)">${tag}</span>`
                 ).join('');
             }
 
-            // เซ็ตค่าเดิมที่มีอยู่ในฐานข้อมูล
             if(form.elements['pValue']) form.elements['pValue'].value = lead.P_Value || lead.p_value || lead.pvalue || '';
             if(form.elements['trainingStatus']) form.elements['trainingStatus'].value = lead.TrainingStatus || lead.training_status || lead.trainingstatus || '';
-            if(form.elements['referrer']) form.elements['referrer'].value = lead.Referrer || lead.referrer || '';
             if(form.elements['backgroundCheck']) form.elements['backgroundCheck'].value = lead.BackgroundCheck || lead.background_check || lead.backgroundcheck || '';
             if(form.elements['notes']) form.elements['notes'].value = lead.Notes || lead.notes || '';
         }
