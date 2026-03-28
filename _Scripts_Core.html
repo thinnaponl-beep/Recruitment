@@ -1,0 +1,529 @@
+<script>
+    // ==========================================
+    // 💾 1. แกนหลักของระบบ (STATE & GLOBAL VARIABLES)
+    // ==========================================
+    const RAW_THAI_DATA = "กรุงเทพมหานคร:พระนคร,ดุสิต,หนองจอก,บางรัก,บางเขน,บางกะปิ,ปทุมวัน,ป้อมปราบศัตรูพ่าย,พระโขนง,มีนบุรี,ลาดกระบัง,ยานนาวา,สัมพันธวงศ์,พญาไท,ธนบุรี,บางกอกใหญ่,ห้วยขวาง,คลองสาน,ตลิ่งชัน,บางกอกน้อย,บางขุนเทียน,ภาษีเจริญ,หนองแขม,ราษฎร์บูรณะ,บางพลัด,ดินแดง,บึงกุ่ม,สาทร,บางซื่อ,จตุจักร,บางคอแหลม,ประเวศ,คลองเตย,สวนหลวง,จอมทอง,ดอนเมือง,ราชเทวี,ลาดพร้าว,วัฒนา,บางแค,หลักสี่,สายไหม,คันนายาว,สะพานสูง,วังทองหลาง,คลองสามวา,บางนา,ทวีวัฒนา,ทุ่งครุ,บางบอน|กระบี่:เมืองกระบี่,เขาพนม,เกาะลันตา,คลองท่อม,อ่าวลึก,ปลายพระยา,ลำทับ,เหนือคลอง|กาญจนบุรี:เมืองกาญจนบุรี,ไทรโยค,บ่อพลอย,ศรีสวัสดิ์,ท่ามะกา,ท่าม่วง,ทองผาภูมิ,สังขละบุรี,พนมทวน,เลาขวัญ,ด่านมะขามเตี้ย,หนองปรือ,ห้วยกระเจา|กาฬสินธุ์:เมืองกาฬสินธุ์,นามน,กมลาไสย,ร่องคำ,กุฉินารายณ์,เขาวง,ยางตลาด,ห้วยเม็ก,สหัสขันธ์,คำม่วง,ท่าคันโท,หนองกุงศรี,สมเด็จ,ห้วยผึ้ง,สามชัย,นาคู,ดอนจาน,ฆ้องชัย|กำแพงเพชร:เมืองกำแพงเพชร,ไทรงาม,คลองลาน,ขาณุวรลักษบุรี,คลองขลุง,พรานกระต่าย,ลานกระบือ,ทรายทองวัฒนา,ปางศิลาทอง,บึงสามัคคี,โกสัมพีนคร|ขอนแก่น:เมืองขอนแก่น,บ้านฝาง,พระยืน,หนองเรือ,ชุมแพ,สีชมพู,น้ำพอง,อุบลรัตน์,กระนวน,บ้านไผ่,เปือยน้อย,พล,แวงใหญ่,แวงน้อย,หนองสองห้อง,ภูเวียง,มัญจาคีรี,ชนบท,เขาสวนกวาง,ภูผาม่าน,ซำสูง,โคกโพธิ์ไชย,หนองนาคำ,บ้านแฮด,โนนศิลา,เวียงเก่า|จันทบุรี:เมืองจันทบุรี,ขลุง,ท่าใหม่,โป่งน้ำร้อน,มะขาม,แหลมสิงห์,สอยดาว,แก่งหางแมว,นายายอาม,เขาคิชฌกูฏ|ฉะเชิงเทรา:เมืองฉะเชิงเทรา,บางคล้า,บางน้ำเปรี้ยว,บางปะกง,บ้านโพธิ์,พนมสารคาม,ราชสาส์น,สนามชัยเขต,แปลงยาว,ท่าตะเกียบ,คลองเขื่อน|ชลบุรี:เมืองชลบุรี,บ้านบึง,หนองใหญ่,บางละมุง,พานทอง,พนัสนิคม,ศรีราชา,เกาะสีชัง,สัตหีบ,บ่อทอง,เกาะจันทร์|ชัยนาท:เมืองชัยนาท,มโนรมย์,วัดสิงห์,สรรพยา,สรรคบุรี,หันคา,หนองมะโมง,เนินขาม|ชัยภูมิ:เมืองชัยภูมิ,บ้านเขว้า,คอนสวรรค์,เกษตรสมบูรณ์,หนองบัวแดง,จัตุรัส,บำเหน็จณรงค์,หนองบัวระเหว,เทพสถิต,ภูเขียว,บ้านแท่น,แก้งคร้อ,คอนสาร,ภักดีชุมพล,เนินสง่า,ซับใหญ่|ชุมพร:เมืองชุมพร,ท่าแซะ,ปะทิว,หลังสวน,แม่อุระ,พะโต๊ะ,ทุ่งตะโก,ทุ่งระยะ|เชียงราย:เมืองเชียงราย,เวียงชัย,เชียงของ,เทิง,พาน,ป่าแดด,แม่จัน,เชียงแสน,แม่สาย,แม่สรวย,เวียงป่าเป้า,พญาเม็งราย,เวียงแก่น,ขุนตาล,แม่ฟ้าหลวง,แม่ลาว,เวียงเชียงรุ้ง,ดอยหลวง|เชียงใหม่:เมืองเชียงใหม่,จอมทอง,แม่แจ่ม,เชียงดาว,ดอยสะเก็ด,แม่แตง,แม่ริม,สะเมิง,ฝาง,แม่อาย,พร้าว,สันป่าตอง,สันกำแพง,สันทราย,หางดง,ฮอด,ดอยเต่า,อมก๋อย,สารภี,เวียงแหง,ไชยปราการ,แม่วาง,แม่ออน,ดอยหล่อ,กัลยาณิวัฒนา|ตรัง:เมืองตรัง,กันตัง,ย่านตาขาว,ปะเหลียน,สิเกา,ห้วยยอด,วังวิเศษ,นาโยง,รัษฎา,หาดสำราญ|ตราด:เมืองตราด,คลองใหญ่,เขาสมิง,บ่อไร่,แหลมงอบ,เกาะกูด,เกาะช้าง|ตาก:เมืองตาก,บ้านตาก,สามเงา,แม่ระมาด,ท่าสองยาง,แม่สอด,พบพระ,อุ้มผาง,วังเจ้า|นครนายก:เมืองนครนายก,ปากพลี,บ้านนา,องครักษ์|นครปฐม:เมืองนครปฐม,กำแพงแสน,นครชัยศรี,ดอนตูม,บางเลน,สามพราน,พุทธมณฑล|นครพนม:เมืองนครพนม,ปลาปาก,ท่าอุเทน,บ้านแพง,ธาตุพนม,เรณูนคร,นาแก,ศรีสงคราม,นาหว้า,โพนสวรรค์,นาทม,วังยาง|นครราชสีมา:เมืองนครราชสีมา,ครบุรี,เสิงสาง,คง,บ้านเหลื่อม,จักราช,โชคชัย,ด่านขุนทด,โนนไทย,โนนสูง,ขามสะแกแสง,บัวใหญ่,ประทาย,ปักธงชัย,พิมาย,ห้วยแถลง,ชุมพวง,สูงเนิน,ขามทะเลสอ,สีคิ้ว,ปากช่อง,หนองบุญมาก,แก้งสนามนาง,โนนแดง,วังน้ำเขียว,เทพารักษ์,เมืองยาง,พระทองคำ,ลำทะเมนชัย,บัวลาย,สีดา,เฉลิมพระเกียรติ|นครศรีธรรมราช:เมืองนครศรีธรรมราช,พรหมคีรี,ลานสกา,ฉวาง,พิปูน,เชียรใหญ่,ชะอวด,ท่าศาลา,ทุ่งสง,นาบอน,ทุ่งใหญ่,ปากพนัง,ร่อนพิบูลย์,สิชล,ขนอม,หัวไทร,บางขัน,ถ้ำพรรณรา,จุฬาภรณ์,พระพรหม,นบพิตำ,ช้างกลาง,เฉลิมพระเกียรติ|นครสวรรค์:เมืองนครสวรรค์,โกรกพระ,ชุมแสง,หนองบัว,บรรพตพิสัย,เก้าเลี้ยว,ตาคลี,ท่าตะโก,ไพศาลี,พยุหะคีรี,ลาดยาว,ตากฟ้า,แม่วงก์,แม่เปิน,ชุมตาบง|นนทบุรี:เมืองนนทบุรี,บางกรวย,บางใหญ่,บางบัวทอง,ไทรน้อย,ปากเกร็ด|นราธิวาส:เมืองนราธิวาส,ตากใบ,บาเจาะ,ยี่งอ,ระแงะ,รือเสาะ,ศรีสาคร,แว้ง,สุคิริน,สุไหงโก-ลก,สุไหงปาดี,จะแนะ,เจาะไอร้อง|น่าน:เมืองน่าน,แม่จริม,บ้านหลวง,นาน้อย,ปัว,ท่าวังผา,เวียงสา,ทุ่งช้าง,เชียงกลาง,นาหมื่น,สันติสุข,บ่อเกลือ,สองแคว,ภูเพียง,เฉลิมพระเกียรติ|บึงกาฬ:เมืองบึงกาฬ,พรเจริญ,โซ่พิสัย,เซกา,ปากคาด,บึงโขงหลง,ศรีวิไล,บุ่งคล้า|บุรีรัมย์:เมืองบุรีรัมย์,คูเมือง,กระสัง,นางรอง,หนองกี่,ละหานทราย,ประโคนชัย,บ้านกรวด,พุทไธสง,ลำปลายมาศ,สตึก,ปะคำ,นาโพธิ์,หนองหงส์,พลับพลาชัย,ห้วยราช,โนนสุวรรณ,ชำนิ,บ้านใหม่ไชยพจน์,โนนดินแดง,บ้านด่าน,แคนดง,เฉลิมพระเกียรติ|ปทุมธานี:เมืองปทุมธานี,คลองหลวง,ธัญบุรี,หนองเสือ,ลาดหลุมแก้ว,ลำลูกกา,สามโคก|ประจวบคีรีขันธ์:เมืองประจวบคีรีขันธ์,กุยบุรี,ทับสะแก,บางสะพาน,บางสะพานน้อย,ปราณบุรี,หัวหิน,สามร้อยยอด|ปราจีนบุรี:เมืองปราจีนบุรี,กบินทร์บุรี,นาดี,บ้านสร้าง,ประจันตคาม,ศรีมหาโพธิ,ศรีมโหสถ|ปัตตานี:เมืองปัตตานี,โคกโพธิ์,หนองจิก,ปะนาเระ,มายอ,ทุ่งยางแดง,สายบุรี,ไม้แก่น,ยะหริ่ง,ยะรัง,กะพ้อ,แม่ลาน|พระนครศรีอยุธยา:พระนครศรีอยุธยา,ท่าเรือ,นครหลวง,บางไทร,บางบาล,บางปะอิน,บางปะหัน,ผักไห่,ภาชี,ลาดบัวหลวง,วังน้อย,เสนา,บางซ้าย,อุทัย,มหาราช,บ้านแพรก|พะเยา:เมืองพะเยา,จุน,เชียงคำ,เชียงม่วน,ดอกคำใต้,ปง,แม่ใจ,ภูซาง,ภูกามยาว|พังงา:เมืองพังงา,เกาะยาว,กะปง,ตะกั่วทุ่ง,ตะกั่วป่า,คุระบุรี,ทับปุด,ท้ายเหมือง|พัทลุง:เมืองพัทลุง,กงหรา,เขาชัยสน,ตะโหมด,ควนขนุน,ปากพะยูน,ป่าบอน,ป่าพะยอม,บางแก้ว,ป่าบอน,ศรีนครินทร์|พิจิตร:เมืองพิจิตร,วังทรายพูน,โพธิ์ประทับช้าง,ตะพานหิน,บางมูลนาก,โพทะเล,สามง่าม,ทับคล้อ,สากเหล็ก,บึงนาราง,ดงเจริญ,วชิรบารมี|พิษณุโลก:เมืองพิษณุโลก,นครไทย,ชาติตระการ,บางระกำ,บางกระทุ่ม,พรหมพิราม,วัดโบสถ์,วังทอง,เนินมะปราง|เพชรบุรี:เมืองเพชรบุรี,เขาย้อย,หนองหญ้าปล้อง,ชะอำ,ท่ายาง,บ้านลาด,บ้านแหลม,แก่งกระจาน|เพชรบูรณ์:เมืองเพชรบูรณ์,ชนแดน,หล่มสัก,หล่มเก่า,วิเชียรบุรี,ศรีเทพ,หนองไผ่,บึงสามพัน,น้ำหนาว,วังโป่ง,เขาค้อ|แพร่:เมืองแพร่,ร้องกวาง,ลอง,สูงเม่น,เด่นชัย,สอง,วังชิ้น,หนองม่วงไข่|ภูเก็ต:เมืองภูเก็ต,กะทู้,ถลาง|มหาสารคาม:เมืองมหาสารคาม,แกดำ,โกสุมพิสัย,กันทรวิชัย,เชียงยืน,บรบือ,นาเชือก,พยัคฆภูมิพิสัย,วาปีปทุม,นาดูน,ยางสีสุราช,กุดรัง,ชื่นชม|มุกดาหาร:เมืองมุกดาหาร,นิคมคำสร้อย,ดอนตาล,ดงหลวง,คำชะอี,หว้านใหญ่,หนองสูง|แม่ฮ่องสอน:เมืองแม่ฮ่องสอน,ขุนยวม,ปาย,แม่สะเรียง,แม่ลาน้อย,สบเมย,ปางมะผ้า|ยโสธร:เมืองยโสธร,ทรายมูล,กุดชุม,คำเขื่อนแก้ว,ป่าติ้ว,มหาชนะชัย,ค้อวัง,เลิงนกทา,ไทยเจริญ|ยะลา:เมืองยะลา,เบตง,บันนังสตา,ธารโต,ยะหา,รามัน,กาบัง,กรงปินัง|ร้อยเอ็ด:เมืองร้อยเอ็ด,เกษตรวิสัย,ปทุมรัตต์,จตุรพักตรพิมาน,ธวัชบุรี,พนมไพร,โพนทอง,โพธิ์ชัย,หนองพอก,เสลภูมิ,สุวรรณภูมิ,เมืองสรวง,โพนทราย,อาจสามารถ,เมยวดี,ศรีสมเด็จ,จังหาร,เชียงขวัญ,หนองฮี|ระนอง:เมืองระนอง,ละอุ่น,กะเปอร์,กระบุรี,สุขสำราญ|ระยอง:เมืองระยอง,บ้านฉาง,แกลง,วังจันทร์,บ้านค่าย,ปลวกแดง,เขาชะเมา,นิคมพัฒนา|ราชบุรี:เมืองราชบุรี,จอมบึง,สวนผึ้ง,ดำเนินสะดวก,บ้านโป่ง,บางแพ,โพธาราม,ปากท่อ,วัดเพลง,บ้านคา|ลพบุรี:เมืองลพบุรี,พัฒนานิคม,โคกสำโรง,ชัยบาดาล,ท่าวุ้ง,บ้านหมี่,ท่าหลวง,สระโบสถ์,โคกเจริญ,ลำสนธิ,หนองม่วง|ลำปาง:เมืองลำปาง,แม่เมาะ,เกาะคา,เสริมงาม,งาว,แจ้ห่ม,วังเหนือ,เถิน,แม่พริก,แม่ทะ,สบปราบ,ห้างฉัตร,เมืองปาน|ลำพูน:เมืองลำพูน,แม่ทา,บ้านโฮ่ง,ลี้,ทุ่งหัวช้าง,ป่าซาง,บ้านธิ,เวียงหนองล่อง|เลย:เมืองเลย,นาด้วง,เชียงคาน,ปากชม,ด่านซ้าย,นาแห้ว,ภูเรือ,ท่าลี่,วังสะพุง,ภูกระดึง,ภูหลวง,ผาขาว,เอราวัณ,หนองหิน|ศรีสะเกษ:เมืองศรีสะเกษ,ยางชุมน้อย,กันทรารมย์,กันทรลักษ์,ขุขันธ์,ไพรบึง,ปรางค์กู่,ขุนหาญ,ราษีไศล,อุทุมพรพิสัย,บึงบูรพ์,ห้วยทับทัน,โนนคูณ,ศรีรัตนะ,น้ำเกลี้ยง,วังหิน,ภูสิงห์,เมืองจันทร์,เบญจลักษ์,พยุห์,โพธิ์ศรีสุวรรณ,ศิลาลาด|สกลนคร:เมืองสกลนคร,กุสุมาลย์,กุดบาก,พรรณานิคม,พังโคน,วาริชภูมิ,นิคมน้ำอูน,วานรนิวาส,คำตากล้า,บ้านม่วง,อากาศอำนวย,สว่างแดนดิน,ส่องดาว,เต่างอย,โคกศรีสุพรรณ,เจริญศิลป์,โพนนาแก้ว,ภูพาน|สงขลา:เมืองสงขลา,สทิงพระ,จะนะ,นาทวี,เทพา,สะบ้าย้อย,ระโนด,กระแสสินธุ์,รัตภูมิ,สะเดา,หาดใหญ่,นาหม่อม,ควนเนียง,บางกล่ำ,สิงหนคร,คลองหอยโข่ง|สตูล:เมืองสตูล,ควนโดน,ควนกาหลง,ท่าแพ,ละงู,ทุ่งหว้า,มะนัง|สมุทรปราการ:เมืองสมุทรปราการ,บางบ่อ,บางพลี,พระประแดง,พระสมุทรเจดีย์,บางเสาธง|สมุทรสงคราม:เมืองสมุทรสงคราม,บางคนที,อัมพวา|สมุทรสาคร:เมืองสมุทรสาคร,กระทุ่มแบน,บ้านแพ้ว|สระแก้ว:เมืองสระแก้ว,คลองหาด,ตาพระยา,วังน้ำเย็น,วัฒนานคร,อรัญประเทศ,เขาฉกรรจ์,โคกสูง,วังสมบูรณ์|สระบุรี:เมืองสระบุรี,แก่งคอย,หนองแค,วิหารแดง,หนองแซง,บ้านหมอ,ดอนพุด,หนองโดน,พระพุทธบาท,เสาไห้,มวกเหล็ก,วังม่วง|สิงห์บุรี:เมืองสิงห์บุรี,บางระจัน,ค่ายบางระจัน,พรหมบุรี,ท่าช้าง,อินทร์บุรี|สุโขทัย:เมืองสุโขทัย,บ้านด่านลานหอย,คีรีมาศ,กงไกรลาศ,ศรีสัชนาลัย,ศรีสำโรง,สวรรคโลก,ศรีนคร,ทุ่งเสลี่ยม|สุพรรณบุรี:เมืองสุพรรณบุรี,เดิมบางนางบวช,ด่านช้าง,หนองหญ้าไซ,สามชุก,อู่ทอง,ดอนเจดีย์,สองพี่น้อง,บางปลาม้า,ศรีประจันต์|สุราษฎร์ธานี:เมืองสุราษฎร์ธานี,กาญจนดิษฐ์,ดอนสัก,เกาะสมุย,เกาะพะงัน,ไชยา,ท่าชนะ,คีรีรัฐนิคม,บ้านตาขุน,พนม,ท่าฉาง,บ้านนาสาร,บ้านนาเดิม,เคียนซา,เวียงสระ,พระแสง,พุนพิน,ชัยบุรี,วิภาวดี|สุรินทร์:เมืองสุรินทร์,ชุมพลบุรี,ท่าตูม,จอมพระ,ปราสาท,กาบเชิง,รัตนบุรี,สนม,ศีขรภูมิ,สังขะ,ลำดวน,สำโรงทาบ,บัวเชด,พนมดงรัก,ศรีณรงค์,เขวาสินรินทร์,โนนนารายณ์|หนองคาย:เมืองหนองคาย,ท่าบ่อ,เฝ้าไร่,โพนพิสัย,สังคม,สระใคร,รัตนวาปี,โพธิ์ตาก|หนองบัวลำภู:เมืองหนองบัวลำภู,นากลาง,โนนสัง,ศรีบุญเรือง,สุวรรณคูหา,นาวัง|อำนาจเจริญ:เมืองอำนาจเจริญ,ชานุมาน,ปทุมราชวงศา,พนา,เสนางคนิคม,หัวตะพาน,ลืออำนาจ|อุดรธานี:เมืองอุดรธานี,กุดจับ,หนองวัวซอ,กุมภวาปี,โนนสะอาด,หนองหาน,ทุ่งฝน,ไชยวาน,ศรีธาตุ,วังสามหมอ,บ้านดุง,บ้านผือ,น้ำโสม,เพ็ญ,สร้างคอม,หนองแสง,นายูง,พิบูลย์รักษ์,กู่แก้ว,ประจักษ์ศิลปาคม|อุตรดิตถ์:เมืองอุตรดิตถ์,ตรอน,ท่าปลา,น้ำปาด,ฟากท่า,บ้านโคก,พิชัย,ลับแล,ทองแสนขัน|อุทัยธานี:เมืองอุทัยธานี,ทัพทัน,สว่างอารมณ์,หนองขาหย่าง,บ้านไร่,บ้านโคก,ห้วยคต,ลานสัก|อุบลราชธานี:เมืองอุบลราชธานี,ศรีเมืองใหม่,โขงเจียม,เขื่องใน,เขมราฐ,เดชอุดม,นาจะหลวย,น้ำยืน,บุณฑริก,ตระการพืชผล,กุดข้าวปุ้น,ม่วงสามสิบ,วารินชำราบ,พิบูลมังสาหาร,ตาลสุม,โพธิ์ไทร,สำโรง,ดอนมดแดง,สิรินธร,ทุ่งศรีอุดม,นาเยีย,นาตาล,เหล่าเสือโก้ก,สว่างวีระวงศ์,น้ำขุ่น";
+    
+    const LOCATION_DATA = RAW_THAI_DATA.split('|').map(provString => {
+        const parts = provString.split(':');
+        const prov = parts[0];
+        const dists = parts[1] || "";
+        return { 
+            name_th: prov, 
+            amphure: dists.split(',').map(d => ({ name_th: d })) 
+        };
+    });
+
+    /**
+     * Application State & Variables
+     */
+    const state = {
+        currentUser: null, // สถานะผู้ใช้งานปัจจุบัน
+        leads: [], 
+        filtered: [], 
+        promotions: [], 
+        admins: [],
+        trainings: [],
+        thaiData: LOCATION_DATA,
+        currentFilter: 'All', 
+        currentPage: 'leads',
+        initialDropdowns: {},
+        dateRange: { start: null, end: null } 
+    };
+
+    let provinceSelectControl;
+    let districtSelectControl;
+    let dateFilterControl;
+    let sortableInstance;
+    let currentConfigCat = 'Channel';
+
+    // โหลดแพ็คเกจ Google Charts
+    if (typeof google !== 'undefined' && google.charts) {
+        google.charts.load('current', {'packages':['timeline']});
+    }
+
+    // ==========================================
+    // 🔐 2. ระบบดึงอีเมลจาก Google Workspace
+    // ==========================================
+    async function fetchUserSession() {
+        return new Promise((resolve) => {
+            if (typeof google === 'undefined' || !google.script) {
+                console.warn("Running outside Google Apps Script environment.");
+                state.currentUser = { email: "local.dev@system.com" };
+                resolve(true);
+                return;
+            }
+
+            google.script.run
+                .withSuccessHandler(async (resStr) => {
+                    try {
+                        const res = JSON.parse(resStr);
+                        if (res.status === 'success') {
+                            state.currentUser = { email: res.email };
+                            const userDisplay = document.getElementById('currentUserDisplay');
+                            if (userDisplay) userDisplay.innerText = res.email;
+                            resolve(true);
+                        } else {
+                            Swal.fire('ข้อผิดพลาดการเข้าถึง', res.message, 'error');
+                            resolve(false);
+                        }
+                    } catch (e) {
+                        console.error(e);
+                        resolve(false);
+                    }
+                })
+                .withFailureHandler((err) => {
+                    console.error("Google Script Error:", err);
+                    Swal.fire('Error', 'ไม่สามารถเชื่อมต่อกับ Google Workspace ได้', 'error');
+                    resolve(false);
+                })
+                .getCurrentSession();
+        });
+    }
+
+    // ==========================================
+    // 🚀 3. INIT & EVENT LISTENERS
+    // ==========================================
+    document.addEventListener('DOMContentLoaded', async () => {
+        
+        const isSessionActive = await fetchUserSession(); 
+        
+        if (isSessionActive) {
+            await loadInitialDataFromSupabase();
+        } else {
+            const loadingOverlay = document.getElementById('loading-overlay');
+            if (loadingOverlay) loadingOverlay.style.display = 'none';
+        }
+
+        if (typeof flatpickr !== 'undefined') {
+            flatpickr("#recordDate", { 
+                locale: "th", 
+                dateFormat: "d/m/Y", 
+                defaultDate: new Date() 
+            });
+
+            const filterEl = document.getElementById('dateFilter');
+            if(filterEl) {
+                dateFilterControl = flatpickr(filterEl, {
+                    locale: "th",
+                    mode: "range",
+                    dateFormat: "d/m/Y",
+                    placeholder: "เลือกช่วงวันที่...",
+                    onChange: function(selectedDates) {
+                        if (selectedDates.length === 2) {
+                            const start = selectedDates[0];
+                            start.setHours(0,0,0,0); 
+                            const end = selectedDates[1];
+                            end.setHours(23,59,59,999); 
+                            
+                            state.dateRange = { start: start, end: end };
+                            if(typeof applyFilters === 'function') applyFilters(); 
+                        } else if (selectedDates.length === 0) {
+                            state.dateRange = { start: null, end: null };
+                            if(typeof applyFilters === 'function') applyFilters();
+                        }
+                    }
+                });
+            }
+        }
+        
+        initProvinceDropdown();
+
+        const sidebarCollapseBtn = document.getElementById('sidebarCollapse');
+        const sidebar = document.getElementById('sidebar');
+        if (sidebarCollapseBtn && sidebar) {
+            sidebarCollapseBtn.addEventListener('click', () => {
+                sidebar.classList.toggle('collapsed');
+            });
+        }
+    });
+
+    // ==========================================
+    // 🛣️ 4. ROUTING & NAVIGATION
+    // ==========================================
+    function switchMenu(pageId, updateUrl = true) {
+        state.currentPage = pageId;
+        
+        if (updateUrl && typeof google !== 'undefined' && google.script && google.script.history) {
+            google.script.history.push(null, { page: pageId }, pageId);
+        }
+
+        document.querySelectorAll('.page-section').forEach(section => {
+            section.style.display = 'none';
+        });
+        const targetPage = document.getElementById('page-' + pageId);
+        if (targetPage) targetPage.style.display = 'block';
+
+        document.querySelectorAll('#sidebar ul li').forEach(li => li.classList.remove('active'));
+        const activeNav = document.getElementById('nav-' + pageId);
+        if (activeNav) activeNav.classList.add('active');
+
+        const titleMap = {
+            'leads': '<i class="fa-solid fa-list-check text-primary"></i> ข้อมูลผู้สมัคร (Leads)',
+            'pvalue': '<i class="fa-solid fa-star text-warning"></i> ระบบประเมิน (P-Value)',
+            'training': '<i class="fa-solid fa-calendar-check text-success"></i> จัดการรอบอบรม (Training)',
+            'promotions': '<i class="fa-solid fa-bullhorn text-danger"></i> จัดการแคมเปญและโปรโมชั่น', 
+            'settings': '<i class="fa-solid fa-gears text-secondary"></i> ตั้งค่าระบบ (Settings)'
+        };
+        const navTitle = document.querySelector('.navbar h4');
+        if (navTitle && titleMap[pageId]) navTitle.innerHTML = titleMap[pageId];
+
+        const navActions = document.getElementById('navbar-actions');
+        const btnAddLead = document.getElementById('btnAddLead');
+        if (btnAddLead) btnAddLead.style.display = pageId === 'leads' ? 'block' : 'none';
+
+        try {
+            if (pageId === 'leads' && typeof applyFilters === 'function') {
+                state.currentFilter = 'All';
+                applyFilters(); 
+            } else if (pageId === 'pvalue' && typeof renderPValueDashboard === 'function') {
+                renderPValueDashboard();
+            } else if (pageId === 'promotions' && typeof loadPromotionsData === 'function') {
+                loadPromotionsData(); 
+            } else if (pageId === 'training' && typeof loadTrainingData === 'function') {
+                loadTrainingData(); 
+            } else if (pageId === 'settings' && typeof loadSettingsDropdowns === 'function') {
+                loadSettingsDropdowns();
+            }
+        } catch (e) { 
+            console.error("Navigation Error:", e); 
+        }
+    }
+
+    // ==========================================
+    // ⚙️ 5. GLOBAL DATA POPULATION (จาก Supabase)
+    // ==========================================
+    
+    async function loadInitialDataFromSupabase() {
+        try {
+            // 1. ดึงข้อมูล Leads
+            const { data: leadsData, error: leadsErr } = await supabase.from('db_leads').select('*');
+            if (leadsErr) throw new Error("ดึงข้อมูล 'db_leads' ไม่สำเร็จ: " + leadsErr.message);
+            
+            const mappedLeads = (leadsData || []).map(row => ({
+                Lead_ID: row.Lead_ID || row.lead_id || row.leadid,
+                RecordDate: formatDateForDisplay(row.RecordDate || row.record_date || row.recorddate), 
+                FullName: row.FullName || row.full_name || row.fullname,
+                Phone: row.Phone || row.phone,
+                Channel: row.Channel || row.channel,
+                JobType: row.JobType || row.job_type || row.jobtype,
+                Province: row.Province || row.province,
+                District: row.District || row.district,
+                Age: row.Age || row.age,
+                StartWithin: row.StartWithin || row.start_within || row.startwithin,
+                ChatLink: row.ChatLink || row.chat_link || row.chatlink,
+                ContactStatus: row.ContactStatus || row.contact_status || row.contactstatus,
+                ContactResult: row.ContactResult || row.contact_result || row.contactresult,
+                IsApplicant: row.IsApplicant || row.is_applicant || row.isapplicant || (row.is_applicant ? 'มี' : 'ไม่มี'),
+                TrainingStatus: row.TrainingStatus || row.training_status || row.trainingstatus,
+                P_Value: row.P_Value || row.p_value || row.pvalue,
+                Promo: row.Promo || row.promo_id || row.promoid || row.promo,
+                Notes: row.Notes || row.notes,
+                Admin: row.Admin || row.admin_email || row.adminemail || row.admin,
+                Assigned_Admin: row.Assigned_Admin || row.assigned_admin || row.assignedadmin,
+                Referrer: row.Referrer || row.referrer,
+                BackgroundCheck: row.BackgroundCheck || row.background_check || row.backgroundcheck
+            }));
+
+            // 2. ดึง Admins
+            const { data: adminData, error: adminErr } = await supabase.from('config_system').select('*');
+            if (adminErr) throw new Error("ดึงข้อมูล 'config_system' ไม่สำเร็จ: " + adminErr.message);
+            
+            const mappedAdmins = (adminData || []).map(a => {
+                // 🌟 ตรวจจับว่าแอดมินคนไหนเป็น Developer
+                const isDevVal = String(a.is_developer || a.Is_Developer || a.is_dev || a.isdev || '').trim().toUpperCase();
+                return {
+                    email: a.Admin_Email || a.email || a.admin_email || a.adminemail,
+                    name: a.Admin_Name || a.name || a.admin_name || a.adminname || a.Admin_Email || a.email,
+                    role: a.Role || a.role,
+                    auto: (a.AutoAssign_Status === 'TRUE' || a.auto_assign || a.autoassign_status) ? 'ON' : 'OFF',
+                    is_dev: (isDevVal === 'TRUE' || isDevVal === '1') // 🌟 แปลงเป็น Boolean เก็บไว้
+                };
+            });
+
+            // 3. ดึง Dropdowns
+            const { data: dropData, error: dropErr } = await supabase.from('config_dropdowns').select('*');
+            if (dropErr) throw new Error("ดึงข้อมูล 'config_dropdowns' ไม่สำเร็จ: " + dropErr.message);
+
+            // 🌟 สร้าง Object เตรียมรับทุกหมวดหมู่ที่จะสร้างใหม่ เพื่อให้พร้อมนำไปใช้งานในฟอร์ม
+            let dropdowns = { 
+                Channel: [], ContactResult: [], Promo: [], JobType: [],
+                StartWithin: [], BackgroundCheck: [], TrainingStatus: [], QuickTags: [], ContactStatus: []
+            };
+
+            if (dropData) {
+                const sortedDropData = [...dropData].sort((a, b) => {
+                    const orderA = a.Sort_Order ?? a.sort_order ?? a.sortorder ?? 0;
+                    const orderB = b.Sort_Order ?? b.sort_order ?? b.sortorder ?? 0;
+                    return orderA - orderB;
+                });
+
+                sortedDropData.forEach(d => {
+                    const cat = d.Category || d.category;
+                    const val = d.Value || d.item_value || d.value;
+                    const isActive = d.IsActive === 'TRUE' || d.IsActive === true || d.is_active === 'TRUE' || d.is_active === true || d.isactive === 'TRUE' || d.isactive === true;
+                    
+                    // ป้องกันไม่ให้ดึงข้อมูล Promo จาก config_dropdowns เพราะอาจมีข้อมูลขยะ
+                    if (cat !== 'Promo' && (isActive || typeof d.IsActive === 'undefined' || typeof d.is_active === 'undefined' || typeof d.isactive === 'undefined')) {
+                        if (!dropdowns[cat]) dropdowns[cat] = []; // ถ้าเป็นหมวดหมู่ใหม่ที่ผู้ใช้เพิ่งสร้าง ก็ให้สร้าง Array รอรับเลย
+                        dropdowns[cat].push(val);
+                    }
+                });
+            }
+
+            // 4. ดึงข้อมูล Promotions แบบ Full Logic และบันทึกลง state ทันที
+            const { data: promoData, error: promoErr } = await supabase.from('db_promotions').select('*');
+            if (promoErr) throw new Error("ดึงข้อมูล 'db_promotions' ไม่สำเร็จ: " + promoErr.message);
+            
+            if (promoData) {
+                const today = new Date();
+                today.setHours(0, 0, 0, 0);
+
+                state.promotions = promoData.map(p => {
+                    let calcStatus = 'Invalid';
+                    let parsedStart = parseFlexibleDate(p.Start_Date || p.start_date || p.startdate);
+                    let parsedEnd = parseFlexibleDate(p.End_Date || p.end_date || p.enddate);
+
+                    if (parsedStart && parsedEnd) {
+                        parsedStart.setHours(0,0,0,0);
+                        parsedEnd.setHours(23, 59, 59, 999);
+                        const dbStatus = p.Status || p.status;
+
+                        if (dbStatus === 'Inactive') calcStatus = 'Inactive';
+                        else if (today > parsedEnd) calcStatus = 'Expired';
+                        else if (today < parsedStart) calcStatus = 'Upcoming';
+                        else calcStatus = 'Active';
+                    }
+
+                    return {
+                        Promo_ID: p.Promo_ID || p.promo_id || p.promoid,
+                        Promo_Name: p.Promo_Name || p.promo_name || p.promoname,
+                        Start_Date: p.Start_Date || p.start_date || p.startdate,
+                        End_Date: p.End_Date || p.end_date || p.enddate,
+                        Description: p.Description || p.description,
+                        Status: p.Status || p.status,
+                        Calculated_Status: calcStatus,
+                        Parsed_Start: parsedStart,
+                        Parsed_End: parsedEnd
+                    };
+                });
+
+                // เก็บเฉพาะโปรที่ Active ลงไปเป็นตัวเลือก Dropdown เบื้องต้น
+                state.promotions.forEach(p => {
+                    if (p.Calculated_Status === 'Active') {
+                        dropdowns.Promo.push({ id: p.Promo_ID, name: p.Promo_Name });
+                    }
+                });
+            }
+
+            // นำข้อมูลเข้าสู่ Global State 
+            state.leads = mappedLeads.reverse();
+            state.filtered = [...state.leads];
+            state.admins = mappedAdmins;
+            
+            if (state.currentUser) {
+                const matchedAdmin = state.admins.find(a => a.email === state.currentUser.email);
+                if (matchedAdmin) {
+                    state.currentUser.name = matchedAdmin.name;
+                    state.currentUser.role = matchedAdmin.role;
+                    const userDisplay = document.getElementById('currentUserDisplay');
+                    if (userDisplay) userDisplay.innerText = matchedAdmin.name || matchedAdmin.email;
+                }
+            }
+
+            state.initialDropdowns = dropdowns;
+            
+            // 🌟 ส่งข้อมูลหมวดหมู่ทั้งหมดไปเติมในฟอร์มหน้าต่างๆ
+            populateDropdowns(dropdowns);
+
+            const loadingOverlay = document.getElementById('loading-overlay');
+            if (loadingOverlay) loadingOverlay.style.display = 'none';
+
+            switchMenu(state.currentPage || 'leads', false);
+
+        } catch (err) {
+            console.error("Load Data Error:", err);
+            Swal.fire('Error', 'เกิดข้อผิดพลาดในการโหลดข้อมูล: ' + err.message, 'error');
+            const loadingOverlay = document.getElementById('loading-overlay');
+            if (loadingOverlay) loadingOverlay.style.display = 'none';
+        }
+    }
+
+    function populateDropdowns(drops) {
+        if (!drops) return;
+        
+        const fill = (id, arr) => {
+            const el = document.getElementById(id);
+            if(!el || !arr) return;
+            
+            const currentVal = el.value; // เก็บค่าเดิมไว้ก่อนอัปเดต
+            el.innerHTML = '<option value="">เลือก...</option>';
+            
+            arr.forEach(val => {
+                // รองรับ Object เพื่อนำชื่อไปแสดง และใช้ ID เป็น Value (สำหรับ Promo)
+                if (typeof val === 'object' && val !== null) {
+                    el.add(new Option(val.name, val.id));
+                } else {
+                    el.add(new Option(val, val));
+                }
+            });
+            
+            if(currentVal) el.value = currentVal; // พยายามตั้งค่ากลับเป็นค่าเดิมถ้ามีในลิสต์
+        };
+
+        // ฟอร์มหน้า Leads (ถ้ามี Element เหล่านี้อยู่ในหน้า)
+        fill('channelSelect', drops.Channel);
+        fill('contactResultSelect', drops.ContactResult);
+        fill('contactStatus', drops.ContactStatus);
+        fill('startWorkWithin', drops.StartWithin);
+        
+        // Dropdown โปรโมชั่น (อาจมีทั้งในหน้า Leads และ P-Value)
+        fill('promoSelect', drops.Promo); 
+        fill('assessPromoSelect', drops.Promo);
+
+        // ฟอร์มหน้า P-Value และอื่นๆ ที่อาจมี
+        // fill('jobTypeSelect', drops.JobType); // กรณีถ้าเปลี่ยน Radio เป็น Select
+        // fill('trainingStatusSelect', drops.TrainingStatus);
+        // fill('backgroundCheckSelect', drops.BackgroundCheck);
+
+        // 🌟 เติม Tag ด่วน (Quick Tags) ในฟอร์ม P-Value หรือ Leads ถ้ามีการตั้งค่าไว้
+        const quickTagsArr = drops.QuickTags || [];
+        const updateTags = (containerId) => {
+            const container = document.getElementById(containerId);
+            if (container && quickTagsArr.length > 0) {
+                container.innerHTML = quickTagsArr.map(tag => 
+                    `<span class="tag-badge" onclick="appendTag(this)">${tag}</span>`
+                ).join('');
+            }
+        };
+        
+        // อัปเดต Tags ในจุดต่างๆ ที่คาดว่าจะมี (สามารถเพิ่ม ID ได้ตามต้องการ)
+        updateTags('quickTags'); // ในหน้า Leads
+        updateTags('assessQuickTags'); // ในหน้า P-Value (ถ้ามีการเพิ่ม div ID นี้เข้าไป)
+    }
+
+    function initProvinceDropdown() {
+        const provSelect = document.getElementById('provinceSelect');
+        if(!provSelect || !state.thaiData) return;
+        
+        if(provinceSelectControl) provinceSelectControl.destroy();
+        provSelect.innerHTML = '<option value="">เลือกจังหวัด...</option>';
+        
+        const sortedProv = [...state.thaiData].sort((a,b) => a.name_th.localeCompare(b.name_th));
+        sortedProv.forEach(p => {
+            provSelect.add(new Option(p.name_th, p.name_th));
+        });
+
+        if (typeof TomSelect !== 'undefined') {
+            provinceSelectControl = new TomSelect(provSelect, {
+                create: false,
+                sortField: { field: "text", direction: "asc" },
+                placeholder: "พิมพ์ค้นหาจังหวัด..."
+            });
+            provinceSelectControl.on('change', function(val) { populateDistrict(val); });
+        }
+    }
+
+    function populateDistrict(provinceName, selectedDistrict = '') {
+        const distSelect = document.getElementById('districtSelect');
+        if(!distSelect) return;
+
+        if(districtSelectControl) districtSelectControl.destroy();
+        distSelect.innerHTML = '<option value="">เลือกอำเภอ/เขต...</option>';
+        
+        if(!provinceName) {
+            if (typeof TomSelect !== 'undefined') {
+                districtSelectControl = new TomSelect(distSelect, { create: false, placeholder: "พิมพ์ค้นหาอำเภอ..." });
+            }
+            return;
+        }
+
+        const provData = state.thaiData.find(p => p.name_th === provinceName);
+        if(provData && provData.amphure) {
+            const sortedDist = [...provData.amphure].sort((a,b) => a.name_th.localeCompare(b.name_th));
+            sortedDist.forEach(d => {
+                distSelect.add(new Option(d.name_th, d.name_th));
+            });
+        }
+
+        if (typeof TomSelect !== 'undefined') {
+            districtSelectControl = new TomSelect(distSelect, {
+                create: false,
+                sortField: { field: "text", direction: "asc" },
+                placeholder: "พิมพ์ค้นหาอำเภอ..."
+            });
+            if(selectedDistrict) districtSelectControl.setValue(selectedDistrict, true);
+        }
+    }
+
+    // ==========================================
+    // 🛠️ 6. HELPERS & DATE UTILITIES
+    // ==========================================
+    
+    function showFullNote(event, encodedText) {
+        event.stopPropagation(); 
+        const text = decodeURIComponent(encodedText);
+        if (text === '-' || !text) return;
+        
+        const formattedText = text.replace(/\n/g, '<br>');
+        
+        Swal.fire({
+            title: '<i class="fa-regular fa-note-sticky text-warning"></i> บันทึก (Note)',
+            html: `<div class="text-start p-3 bg-light rounded border shadow-sm" style="max-height: 400px; overflow-y: auto;">${formattedText}</div>`,
+            confirmButtonText: 'ปิดหน้าต่าง',
+            confirmButtonColor: '#6c757d'
+        });
+    }
+
+    function appendTag(el) {
+        const noteArea = document.getElementById('staffNotesAssess') || document.getElementById('notes') || document.getElementById('staffNotes');
+        if(!noteArea) return;
+        const text = el.innerText;
+        // เช็คว่ามีคำนี้อยู่แล้วหรือยัง เพื่อป้องกันการกดซ้ำ
+        if(!noteArea.value.includes(text)) {
+            // เช็คว่าถ้ามีข้อความอยู่แล้วและไม่ได้จบด้วยการเว้นวรรค ให้เคาะ space 1 ที
+            if (noteArea.value.length > 0 && !noteArea.value.endsWith(' ') && !noteArea.value.endsWith('\n')) {
+                noteArea.value += ' ';
+            }
+            noteArea.value += text + ' ';
+            
+            // ทำให้ปุ่มกระพริบเวลากด
+            el.style.transform = 'scale(0.95)';
+            setTimeout(() => el.style.transform = 'scale(1)', 150);
+        }
+    }
+
+    function formatDateForDisplay(dateStr) {
+        if (!dateStr) return '';
+        if (dateStr.includes('/')) return dateStr; 
+        
+        const d = new Date(dateStr);
+        if (isNaN(d.getTime())) return dateStr; 
+        
+        const day = String(d.getDate()).padStart(2, '0');
+        const month = String(d.getMonth() + 1).padStart(2, '0');
+        const year = d.getFullYear();
+        return `${day}/${month}/${year}`;
+    }
+
+    function formatDateForDB(dateStr) {
+        if (!dateStr) return null;
+        if (dateStr.includes('-')) return dateStr; 
+        
+        const parts = dateStr.split('/');
+        if (parts.length === 3) {
+            return `${parts[2]}-${parts[1]}-${parts[0]}`;
+        }
+        return null;
+    }
+
+    function parseFlexibleDate(dateStr) {
+        if (!dateStr) return null;
+        if (dateStr.includes('/')) {
+            const parts = dateStr.split('/');
+            return new Date(parts[2], parts[1] - 1, parts[0]);
+        }
+        const d = new Date(dateStr);
+        return isNaN(d.getTime()) ? null : d;
+    }
+</script>
