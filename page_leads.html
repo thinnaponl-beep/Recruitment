@@ -1,0 +1,217 @@
+<div class="container-fluid p-4">
+    <!-- Dashboard Cards -->
+    <div class="row g-3 mb-4" id="pValueCards">
+        <!-- JS generates cards here -->
+    </div>
+
+    <!-- Data Table -->
+    <div class="card shadow-sm border-0 mb-4">
+        <!-- Header ขาวๆ พร้อมช่องกรองวันที่ -->
+        <div class="card-header bg-white py-3 border-bottom d-flex justify-content-between align-items-center flex-wrap gap-3">
+            <h5 class="mb-0 fw-bold text-dark"><i class="fa-solid fa-list-ul text-primary me-2"></i> รายชื่อผู้สมัคร</h5>
+            
+            <div class="d-flex align-items-center gap-2">
+                <label class="form-label mb-0 fw-bold text-muted small" style="white-space: nowrap;">กรองวันที่บันทึก:</label>
+                <div class="input-group input-group-sm" style="width: 260px;">
+                    <span class="input-group-text bg-white text-muted"><i class="fa-regular fa-calendar"></i></span>
+                    <input type="text" class="form-control" id="dateFilter" placeholder="เลือกช่วงวันที่...">
+                    <button class="btn btn-outline-secondary" type="button" onclick="clearDateFilter()" title="ล้างตัวกรอง">
+                        <i class="fa-solid fa-xmark"></i>
+                    </button>
+                </div>
+            </div>
+        </div>
+        
+        <div class="card-body p-0">
+            <div class="table-responsive">
+                <table class="table table-hover align-middle mb-0">
+                    <thead class="table-light">
+                        <tr>
+                            <th class="text-center ps-3" style="width: 60px;">ลำดับที่</th>
+                            <th>วันที่บันทึก</th>
+                            <th>ชื่อ-นามสกุล</th>
+                            <th>การติดต่อ (โทร/แชท)</th>
+                            <th>มาจากทาง</th>
+                            <th>พื้นที่ (จังหวัด/อำเภอ)</th>
+                            <th>สถานะการติดต่อ</th>
+                            <th>Note</th>
+                            <th>แอดมิน</th>
+                            <th class="text-center pe-3" style="min-width: 140px;">จัดการ</th>
+                        </tr>
+                    </thead>
+                    <tbody id="leadsTableBody">
+                        <!-- JS จะสร้างแถวข้อมูลตรงนี้ -->
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ========================================================
+     MODAL: ฟอร์มเพิ่ม/แก้ไข ข้อมูลผู้สมัคร (Add/Edit Lead)
+     ======================================================== -->
+<div class="modal fade" id="addLeadModal" data-bs-backdrop="static" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-xl modal-dialog-centered"> 
+        <div class="modal-content border-0 shadow-lg bg-light">
+            <form id="addLeadForm">
+                <!-- ซ่อน Input ID ไว้เช็คว่าเป็นสถานะ แก้ไข หรือ เพิ่มใหม่ -->
+                <input type="hidden" id="actionLeadId" name="leadId">
+                
+                <!-- HEADER TOOLBAR -->
+                <div class="position-relative bg-white border-bottom p-4 d-flex align-items-center justify-content-between rounded-top">
+                    <div class="d-flex align-items-center gap-3">
+                        <div class="bg-warning bg-opacity-10 text-warning rounded-circle d-flex align-items-center justify-content-center" style="width: 45px; height: 45px;">
+                            <i class="fa-solid fa-user-pen fs-5"></i>
+                        </div>
+                        <h4 class="mb-0 fw-bold" id="leadModalTitle">เพิ่มผู้สมัครใหม่</h4>
+                    </div>
+
+                    <button type="button" class="btn-close m-0" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+
+                <!-- FORM BODY -->
+                <div class="p-4">
+                    <div class="row g-4">
+                        
+                        <!-- COLUMN 1: BASIC INFO -->
+                        <div class="col-lg-6 col-md-12">
+                            <div class="bg-white p-4 rounded shadow-sm h-100 border-top border-primary border-4">
+                                <h6 class="fw-bold text-primary mb-4"><i class="fa-solid fa-address-card me-2"></i>1. ข้อมูลพื้นฐาน (Basic Info)</h6>
+                                
+                                <div class="mb-3">
+                                    <label class="form-label fw-bold small text-muted">วันที่สัมภาษณ์/บันทึก <span class="text-danger">*</span></label>
+                                    <div class="input-group">
+                                        <span class="input-group-text bg-light"><i class="fa-regular fa-calendar"></i></span>
+                                        <input type="text" class="form-control" name="recordDate" id="recordDate" placeholder="DD/MM/YYYY" required>
+                                    </div>
+                                </div>
+
+                                <div class="mb-3">
+                                    <label class="form-label fw-bold small text-muted">ชื่อ-นามสกุล <span class="text-danger">*</span></label>
+                                    <input type="text" class="form-control" name="fullName" id="fullName" required placeholder="ระบุชื่อ-นามสกุล">
+                                </div>
+
+                                <div class="mb-3">
+                                    <label class="form-label fw-bold small text-muted">เบอร์ติดต่อ <span class="text-danger">*</span></label>
+                                    <input type="tel" class="form-control" name="phone" id="phoneNumber" required placeholder="08X-XXX-XXXX">
+                                </div>
+
+                                <div class="mb-3">
+                                    <label class="form-label fw-bold small text-muted">ช่องทางที่ติดต่อมา <span class="text-danger">*</span></label>
+                                    <select class="form-select" name="channel" id="channelSelect" required>
+                                        <option value="" selected disabled>โหลดข้อมูลช่องทาง...</option>
+                                    </select>
+                                </div>
+
+                                <div class="mb-3">
+                                    <label class="form-label fw-bold small text-muted">ประเภทผู้สมัคร <span class="text-danger">*</span></label>
+                                    <div class="d-flex gap-2">
+                                        <input type="radio" class="btn-check" name="jobType" id="typeMaid" value="แม่บ้าน" checked>
+                                        <label class="btn btn-outline-primary flex-fill" for="typeMaid">คุณแม่บ้าน</label>
+                                      
+                                        <input type="radio" class="btn-check" name="jobType" id="typeTech" value="ช่างแอร์">
+                                        <label class="btn btn-outline-primary flex-fill" for="typeTech">ช่างแอร์</label>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- COLUMN 2: PERSONAL DETAILS -->
+                        <div class="col-lg-6 col-md-12">
+                            <div class="bg-white p-4 rounded shadow-sm h-100 border-top border-success border-4">
+                                <h6 class="fw-bold text-success mb-4"><i class="fa-solid fa-user-tag me-2"></i>2. ข้อมูลส่วนตัว (Personal Details)</h6>
+                                
+                                <div class="row mb-3">
+                                    <div class="col-6">
+                                        <label class="form-label fw-bold small text-muted">สถานะติดต่อ</label>
+                                        <select class="form-select" name="contactStatus" id="contactStatus">
+                                            <option value="" selected>เลือก...</option>
+                                            <option value="ติดต่อได้">ติดต่อได้</option>
+                                            <option value="ติดต่อไม่ได้">ติดต่อไม่ได้</option>
+                                        </select>
+                                    </div>
+                                    <div class="col-6">
+                                        <label class="form-label fw-bold small text-muted">ผลการติดต่อ</label>
+                                        <select class="form-select" name="contactResult" id="contactResultSelect">
+                                            <option value="" selected>โหลดผลการติดต่อ...</option>
+                                        </select>
+                                    </div>
+                                </div>
+
+                                <div class="row mb-3">
+                                    <div class="col-6">
+                                        <label class="form-label fw-bold small text-muted">จังหวัด</label>
+                                        <select class="form-select" name="province" id="provinceSelect">
+                                            <option value="" selected>เลือก...</option>
+                                        </select>
+                                    </div>
+                                    <div class="col-6">
+                                        <label class="form-label fw-bold small text-muted">อำเภอ/เขต</label>
+                                        <select class="form-select" name="district" id="districtSelect">
+                                            <option value="" selected>เลือก...</option>
+                                        </select>
+                                    </div>
+                                </div>
+
+                                <div class="row mb-3">
+                                    <div class="col-6">
+                                        <label class="form-label fw-bold small text-muted">อายุ (ปี)</label>
+                                        <input type="number" class="form-control" name="age" id="age" min="18" max="70" placeholder="ระบุอายุ">
+                                    </div>
+                                    <div class="col-6">
+                                        <label class="form-label fw-bold small text-muted">เริ่มงานภายใน</label>
+                                        <select class="form-select" name="startWithin" id="startWorkWithin">
+                                            <option value="" selected>เลือก...</option>
+                                            <option value="ทันที">ทันที</option>
+                                            <option value="1 สัปดาห์">1 สัปดาห์</option>
+                                            <option value="1 เดือน">1 เดือน</option>
+                                        </select>
+                                    </div>
+                                </div>
+
+                                <div class="mb-3">
+                                    <label class="form-label fw-bold small text-muted">BeNeat Chat Link</label>
+                                    <div class="input-group">
+                                        <!-- 🌟 แทนที่ไอคอน Line ด้วยโลโก้ BeNeat (Inline SVG) 🌟 -->
+                                        <span class="input-group-text bg-light p-2 border-end-0">
+                                            <svg width="22" height="22" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+                                                <path d="M50 5C25.1 5 5 25.1 5 50c0 10.4 3.6 20 9.6 27.6L10 95l18.4-4.8c7 3.1 14.8 4.8 23.1 4.8 24.9 0 45-20.1 45-45S74.9 5 50 5z" fill="#3bc2d6"/>
+                                                <text x="48" y="70" font-family="Arial, sans-serif" font-weight="900" font-size="50" fill="#FFFFFF" text-anchor="middle" transform="rotate(-8 50 50)">B</text>
+                                            </svg>
+                                        </span>
+                                        <input type="url" class="form-control border-start-0" name="chatLink" id="chatLink" placeholder="https://beneat-chat.com/...">
+                                    </div>
+                                </div>
+
+                                <div class="mb-3">
+                                    <label class="form-label fw-bold small text-muted">สถานะ Applicant</label>
+                                    <div class="d-flex gap-2 p-1 bg-light rounded" style="width: fit-content;">
+                                        <input type="radio" class="btn-check" name="isApplicant" id="appYes" value="มี">
+                                        <label class="btn btn-sm btn-outline-secondary border-0 fw-bold" for="appYes">มี</label>
+                                      
+                                        <input type="radio" class="btn-check" name="isApplicant" id="appNo" value="ไม่มี" checked>
+                                        <label class="btn btn-sm btn-outline-success border-0 fw-bold" for="appNo">ไม่มี</label>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- BOTTOM SECTION: NOTES -->
+                    <div class="bg-white p-3 rounded shadow-sm border mt-4">
+                        <label class="form-label fw-bold small text-dark"><i class="fa-solid fa-file-lines text-muted me-2"></i> โน้ตเบื้องต้น</label>
+                        <textarea class="form-control bg-light" name="notes" id="notes" rows="3" placeholder="สรุปเนื้อหาสัมภาษณ์ หรือบันทึกเพิ่มเติม..."></textarea>
+                    </div>
+
+                </div>
+
+                <!-- FOOTER -->
+                <div class="bg-white border-top p-4 d-flex justify-content-between rounded-bottom">
+                    <button type="button" class="btn text-danger fw-bold" data-bs-dismiss="modal">ยกเลิก (Discard)</button>
+                    <button type="submit" class="btn btn-primary px-5 fw-bold shadow-sm"><i class="fa-solid fa-floppy-disk me-2"></i> บันทึกข้อมูล (Save)</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
