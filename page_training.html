@@ -22,7 +22,7 @@
                             <th>ชื่อ-นามสกุล</th>
                             <th>การติดต่อ (โทร/แชท)</th>
                             <th>ประเภทงาน</th>
-                            <th>โปรโมชั่น</th>
+                            <th>โปรโมชั่น / ผู้แนะนำ</th>
                             <th>ค่า P-Value</th>
                             <th>วันโอนจอง</th>
                             <th>วันนัดอบรม</th>
@@ -62,6 +62,14 @@
                         <div class="mt-2 small text-danger fw-bold" id="rescheduleWarning"></div>
                     </div>
 
+                    <!-- 🌟 เพิ่มฟิลด์เลือก แคมเปญที่ใช้จริง (Final Campaign) 🌟 -->
+                    <div class="mb-3 p-3 bg-white border rounded shadow-sm">
+                        <label class="form-label fw-bold small text-primary"><i class="fa-solid fa-ranking-star me-1"></i> แคมเปญที่ใช้จริง (เพื่อเก็บสถิติ) <span class="text-danger">*</span></label>
+                        <select class="form-select fw-bold" name="finalCampaign" id="trainFinalCampaign" required>
+                            <option value="" disabled selected>-- โหลดข้อมูลแคมเปญ... --</option>
+                        </select>
+                        <div class="form-text text-muted small mt-1">** กรณีที่มีทั้งโค้ดโปรโมชั่นและผู้แนะนำ กรุณาเลือก 1 สิทธิ์ที่ผู้สมัครต้องการใช้จริง</div>
+                    </div>
                     <div class="row mb-3">
                         <div class="col-6">
                             <label class="form-label fw-bold small text-muted">วันโอนจอง</label>
@@ -89,11 +97,11 @@
 
                     <div class="mb-3">
                         <label class="form-label fw-bold small text-muted">สถานะการอบรม</label>
+                        <!-- 🌟 อัปเดต Dropdown ตัด ผ่าน/ไม่ผ่าน ออก เหลือแค่อบรมแล้ว -->
                         <select class="form-select fw-bold" name="status" id="trainStatus" required>
                             <option value="รอดำเนินการ" selected>รอดำเนินการ</option>
                             <option value="รออบรม">รออบรม</option>
-                            <option value="อบรมแล้ว (ผ่าน)">อบรมแล้ว (ผ่าน)</option>
-                            <option value="อบรมแล้ว (ไม่ผ่าน)">อบรมแล้ว (ไม่ผ่าน)</option>
+                            <option value="อบรมแล้ว">อบรมแล้ว</option>
                             <option value="ยกเลิก/สละสิทธิ์">ยกเลิก/สละสิทธิ์</option>
                         </select>
                     </div>
