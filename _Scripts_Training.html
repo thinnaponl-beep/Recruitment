@@ -41,6 +41,44 @@
     const RESCHEDULE_LIMIT_DAYS = 30;
 
     // ==========================================
+    // 🌟 ฟังก์ชันคำนวณสถานะอัตโนมัติ (Auto-Status Logic)
+    // ==========================================
+    function getEffectiveTrainStatus(trainInfo) {
+        let status = trainInfo.status || trainInfo.Status || 'รอดำเนินการ';
+        
+        // แปลงสถานะเก่าให้เข้ากับระบบใหม่ (Backward Compatibility)
+        if (status === 'อบรมแล้ว (ผ่าน)' || status === 'อบรมแล้ว (ไม่ผ่าน)') {
+            status = 'อบรมแล้ว';
+        }
+
+        // ถ้ายังไม่ได้ยกเลิก และยังไม่เป็นสถานะ อบรมแล้ว ให้เช็ควันที่
+        if (status !== 'ยกเลิก/สละสิทธิ์' && status !== 'อบรมแล้ว') {
+            const tDateStr = trainInfo.train_date || trainInfo.traindate || trainInfo.TrainDate;
+            if (tDateStr) {
+                 let tDate;
+                 if (tDateStr.includes('/')) {
+                     const parts = tDateStr.split('/');
+                     tDate = new Date(parts[2], parts[1] - 1, parts[0]); // yyyy, mm-1, dd
+                 } else {
+                     tDate = new Date(tDateStr);
+                 }
+                 
+                 if (!isNaN(tDate.getTime())) {
+                     tDate.setHours(0,0,0,0);
+                     const today = new Date();
+                     today.setHours(0,0,0,0);
+                     
+                     // หากวันที่นัดอบรมน้อยกว่าวันนี้ (เลยวันมาแล้ว) ให้เปลี่ยนเป็น อบรมแล้ว
+                     if (tDate < today) {
+                         status = 'อบรมแล้ว';
+                     }
+                 }
+            }
+        }
+        return status;
+    }
+
+    // ==========================================
     // 🎓 1. โหลดข้อมูลและแสดงผล (Training Dashboard & Filters)
     // ==========================================
 
@@ -71,26 +109,30 @@
             return pVal === 'P100' || tStat === 'จองอบรม';
         });
 
-        const tCounts = { 'Total': eligibleLeads.length, 'รอดำเนินการ': 0, 'รออบรม': 0, 'อบรมแล้ว (ผ่าน)': 0, 'อบรมแล้ว (ไม่ผ่าน)': 0, 'ยกเลิก/สละสิทธิ์': 0 };
+        // 🌟 อัปเดตตัวนับ ตัดผ่าน/ไม่ผ่านออก
+        const tCounts = { 'Total': eligibleLeads.length, 'รอดำเนินการ': 0, 'รออบรม': 0, 'อบรมแล้ว': 0, 'ยกเลิก/สละสิทธิ์': 0 };
 
         eligibleLeads.forEach(l => {
             const leadId = l.Lead_ID || l.lead_id || l.leadid;
             const trainInfo = state.trainings.find(t => (t.lead_id === leadId || t.leadid === leadId || t.Lead_ID === leadId)) || {};
-            let status = trainInfo.status || trainInfo.Status || 'รอดำเนินการ';
+            
+            // ใช้ฟังก์ชันคำนวณสถานะอัตโนมัติ
+            let status = getEffectiveTrainStatus(trainInfo);
+            
             if (tCounts[status] !== undefined) tCounts[status]++;
             else tCounts[status] = 1;
         });
 
+        // 🌟 อัปเดต Card โชว์แค่ 4 สถานะ
         const tConfigs = [
             { id: 'All', label: 'ทั้งหมด', count: tCounts['Total'], color: '#64748b' },
             { id: 'รอดำเนินการ', label: 'รอดำเนินการ', count: tCounts['รอดำเนินการ'], color: '#f59e0b' },
             { id: 'รออบรม', label: 'รออบรม', count: tCounts['รออบรม'], color: '#3b82f6' },
-            { id: 'อบรมแล้ว (ผ่าน)', label: 'ผ่าน', count: tCounts['อบรมแล้ว (ผ่าน)'], color: '#10b981' },
-            { id: 'อบรมแล้ว (ไม่ผ่าน)', label: 'ไม่ผ่าน', count: tCounts['อบรมแล้ว (ไม่ผ่าน)'], color: '#ef4444' },
-            { id: 'ยกเลิก/สละสิทธิ์', label: 'ยกเลิก', count: tCounts['ยกเลิก/สละสิทธิ์'], color: '#6b7280' }
+            { id: 'อบรมแล้ว', label: 'อบรมแล้ว', count: tCounts['อบรมแล้ว'], color: '#10b981' },
+            { id: 'ยกเลิก/สละสิทธิ์', label: 'ยกเลิกสละสิทธิ์', count: tCounts['ยกเลิก/สละสิทธิ์'], color: '#ef4444' }
         ];
 
-        let cardsHtml = '<div class="row row-cols-2 row-cols-md-3 row-cols-lg-6 g-2 mb-3">';
+        let cardsHtml = '<div class="row row-cols-2 row-cols-md-3 row-cols-lg-5 g-2 mb-3">';
         tConfigs.forEach(c => {
             const isActive = state.trainFilter === c.id;
             const activeStyle = isActive ? `box-shadow: 0 0 0 3px rgba(0,0,0,0.05); border-color: ${c.color} !important; background-color: ${c.color}15; transform: translateY(-2px);` : '';
@@ -200,7 +242,7 @@
             filtered = filtered.filter(l => {
                 const leadId = l.Lead_ID || l.lead_id || l.leadid;
                 const trainInfo = state.trainings.find(t => (t.lead_id === leadId || t.leadid === leadId || t.Lead_ID === leadId)) || {};
-                const status = trainInfo.status || trainInfo.Status || 'รอดำเนินการ';
+                const status = getEffectiveTrainStatus(trainInfo);
                 return status === state.trainFilter;
             });
         }
@@ -259,27 +301,54 @@
             const jobType = row.JobType || row.job_type || row.jobtype || '-';
             const pVal = row.P_Value || row.p_value || row.pvalue || '-';
             
-            // 🌟 ข้อมูลที่เพิ่มมาใหม่
             const phoneStr = row.Phone || row.phone || '-';
             const chatLnk = row.ChatLink || row.chat_link || row.chatlink;
             
+            const trainInfo = state.trainings.find(t => (t.lead_id === leadId || t.leadid === leadId || t.Lead_ID === leadId)) || {};
+            const finalCampaign = trainInfo.final_campaign || trainInfo.finalcampaign || trainInfo.FinalCampaign || '';
+            
+            // 🌟 แมปปิ้งข้อมูลโปรโมชั่น และ เช็คการถูกเลือก (Checkmark)
             const promoId = row.Promo || row.promo_id || row.promoid || row.promo || '-';
-            let promoName = promoId;
-            if (promoId !== '-') {
+            let promoDisplay = '';
+            if (promoId && promoId !== '-') {
+                let promoName = promoId;
                 const matchedPromo = state.promotions?.find(p => p.Promo_ID === promoId || p.promo_id === promoId);
                 if (matchedPromo) promoName = matchedPromo.Promo_Name || matchedPromo.promo_name;
+                
+                let promoCheck = (finalCampaign === promoId) ? '<i class="fa-solid fa-circle-check text-success ms-1 fs-6" title="สิทธิ์ที่ถูกเลือกใช้"></i>' : '';
+                promoDisplay = `<div><span class="badge bg-light text-primary border px-2 py-1">${promoName} ${promoCheck}</span></div>`;
+            }
+
+            // 🌟 แมปปิ้งข้อมูลผู้แนะนำ และ เช็คการถูกเลือก (Checkmark)
+            const refId = row.Referrer || row.referrer;
+            let referrerDisplay = '';
+            if (refId && refId !== '-') {
+                let refCheck = (finalCampaign === refId) ? '<i class="fa-solid fa-circle-check text-success ms-1 fs-6" title="สิทธิ์ที่ถูกเลือกใช้"></i>' : '';
+                const matchedRef = state.referrers?.find(r => r.Ref_ID === refId);
+                let rName = matchedRef ? (matchedRef.Ref_Name || matchedRef.ref_name) : refId;
+                referrerDisplay = `<div class="mt-1"><span class="text-secondary fw-bold small"><i class="fa-solid fa-user-tag text-muted me-1"></i>${rName} ${refCheck}</span></div>`;
+            }
+
+            // รวมโค้ดการแสดงผลของคอลัมน์แคมเปญ
+            let campaignCellHtml = promoDisplay + referrerDisplay;
+            if (!promoDisplay && !referrerDisplay) {
+                campaignCellHtml = `<span class="text-muted">-</span>`;
+            }
+            // ถ้าระบุชัดเจนว่าเลือก Organic ให้โชว์ป้าย
+            if (finalCampaign === 'Organic') {
+                campaignCellHtml += `<div class="mt-1"><span class="badge bg-light text-secondary border border-secondary opacity-75" style="font-size: 0.65rem;"><i class="fa-solid fa-leaf me-1"></i>Organic (ไม่ใช้สิทธิ์)</span></div>`;
             }
 
             const beneatIcon = `<svg width="16" height="16" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg" class="me-1"><path d="M50 5C25.1 5 5 25.1 5 50c0 10.4 3.6 20 9.6 27.6L10 95l18.4-4.8c7 3.1 14.8 4.8 23.1 4.8 24.9 0 45-20.1 45-45S74.9 5 50 5z" fill="#3bc2d6"/><text x="48" y="70" font-family="Arial, sans-serif" font-weight="900" font-size="50" fill="#FFFFFF" text-anchor="middle" transform="rotate(-8 50 50)">B</text></svg>`;
             const chatLinkBtn = chatLnk ? `<a href="${chatLnk}" target="_blank" class="btn btn-sm btn-light border text-primary fw-bold px-2 py-0 mt-1 d-inline-flex align-items-center" onclick="event.stopPropagation()">${beneatIcon} แชท</a>` : '<div class="text-muted small mt-1">-</div>';
             
-            const trainInfo = state.trainings.find(t => (t.lead_id === leadId || t.leadid === leadId || t.Lead_ID === leadId)) || {};
-            
             const transferDateRaw = trainInfo.transfer_date || trainInfo.transferdate || trainInfo.TransferDate;
             const transferDate = formatDateForDisplay(transferDateRaw) || '-';
             const trainDate = formatDateForDisplay(trainInfo.train_date || trainInfo.traindate || trainInfo.TrainDate) || '<span class="text-warning fw-bold">ยังไม่ระบุ</span>';
             const reschedCount = parseInt(trainInfo.reschedule_count || trainInfo.reschedulecount || trainInfo.RescheduleCount || 0);
-            const status = trainInfo.status || trainInfo.Status || 'รอดำเนินการ';
+            
+            // 🌟 คำนวณสถานะล่าสุด
+            const status = getEffectiveTrainStatus(trainInfo);
             const notes = trainInfo.notes || trainInfo.Notes || '-';
             const encodedNote = encodeURIComponent(notes);
 
@@ -295,8 +364,8 @@
             if (reschedCount >= 2) countBadge = `<span class="badge bg-danger">${reschedCount} / 2 (เต็ม)</span>`;
 
             let statusBadge = `<span class="badge bg-light text-dark border">${status}</span>`;
-            if (status.includes('ผ่าน')) statusBadge = `<span class="badge bg-success">${status}</span>`;
-            else if (status.includes('ไม่ผ่าน') || status.includes('ยกเลิก')) statusBadge = `<span class="badge bg-danger">${status}</span>`;
+            if (status === 'อบรมแล้ว') statusBadge = `<span class="badge bg-success">${status}</span>`;
+            else if (status === 'ยกเลิก/สละสิทธิ์') statusBadge = `<span class="badge bg-danger">${status}</span>`;
             else if (status === 'รออบรม') statusBadge = `<span class="badge bg-primary">${status}</span>`;
 
             return `
@@ -308,7 +377,9 @@
                     ${chatLinkBtn}
                 </td>
                 <td><span class="badge bg-info text-dark">${jobType}</span></td>
-                <td><span class="badge bg-light text-primary border">${promoName}</span></td>
+                <td>
+                    ${campaignCellHtml}
+                </td>
                 <td><span class="badge bg-success">${pVal}</span></td>
                 <td class="small text-muted"><i class="fa-regular fa-calendar"></i> ${transferDate}</td>
                 <td class="small"><i class="fa-regular fa-calendar-check text-success"></i> ${trainDate}</td>
@@ -346,6 +417,40 @@
 
         document.getElementById('trainLeadId').value = leadId;
         document.getElementById('trainLeadName').innerText = lead.FullName || lead.full_name || lead.fullname || 'Unknown';
+
+        // 🌟 เพิ่ม Logic สำหรับดึงข้อมูลใส่ Dropdown แคมเปญที่ใช้จริง (Final Campaign)
+        const finalCampaignSelect = document.getElementById('trainFinalCampaign');
+        let hasOptions = false;
+        if (finalCampaignSelect) {
+            finalCampaignSelect.innerHTML = '<option value="" disabled selected>-- เลือกแคมเปญที่ใช้จริง --</option>';
+            
+            // ตรวจสอบโปรโมชั่น
+            const promoId = lead.Promo || lead.promo_id || lead.promoid || lead.promo;
+            if (promoId && promoId !== '-') {
+                let promoName = promoId;
+                const matchedPromo = state.promotions?.find(p => p.Promo_ID === promoId || p.promo_id === promoId);
+                if (matchedPromo) promoName = matchedPromo.Promo_Name || matchedPromo.promo_name;
+                finalCampaignSelect.add(new Option(`[โปรโมชั่น] ${promoName}`, promoId));
+                hasOptions = true;
+            }
+            
+            // ตรวจสอบผู้แนะนำ
+            const refId = lead.Referrer || lead.referrer;
+            if (refId && refId !== '-') {
+                let refName = refId;
+                const matchedRef = state.referrers?.find(r => r.Ref_ID === refId);
+                if (matchedRef) refName = matchedRef.Ref_Name || matchedRef.ref_name;
+                finalCampaignSelect.add(new Option(`[ผู้แนะนำ] ${refName}`, refId));
+                hasOptions = true;
+            }
+            
+            // เพิ่มตัวเลือก Organic (กรณีไม่ใช้อะไรเลย)
+            if (!hasOptions) {
+                finalCampaignSelect.add(new Option('ไม่มีโปรโมชั่น/ผู้แนะนำ (Organic)', 'Organic'));
+            } else {
+                finalCampaignSelect.add(new Option('ไม่ใช้สิทธิ์ใดๆ (Organic)', 'Organic'));
+            }
+        }
 
         const modalBody = document.querySelector('#trainingModal .modal-body');
         
@@ -388,9 +493,12 @@
         document.getElementById('oldTrainDate').value = formatDateForDB(formatDateForDisplay(existingTrainDateRaw)) || '';
 
         document.getElementById('trainAmount').value = trainInfo.amount || trainInfo.Amount || '';
-        if (trainInfo.status || trainInfo.Status) {
-            document.getElementById('trainStatus').value = trainInfo.status || trainInfo.Status;
+        
+        // 🌟 ดึงสถานะที่คำนวณแบบ Real-time มาแสดงใน Modal เลย
+        if (document.getElementById('trainStatus')) {
+            document.getElementById('trainStatus').value = getEffectiveTrainStatus(trainInfo);
         }
+        
         if (document.getElementById('trainNotes')) {
             document.getElementById('trainNotes').value = trainInfo.notes || trainInfo.Notes || '';
         }
@@ -416,6 +524,17 @@
                 locale: "th", dateFormat: "d/m/Y"
             });
 
+            // 🌟 ดึงค่า Final Campaign ที่เคยบันทึกไว้มาแสดง (ถ้ามี)
+            if (finalCampaignSelect) {
+                const existingFinal = trainInfo.final_campaign || trainInfo.finalcampaign || trainInfo.FinalCampaign;
+                if (existingFinal) {
+                    finalCampaignSelect.value = existingFinal;
+                } else if (!hasOptions) {
+                    // หากไม่มีโปรใดๆ ให้เซ็ตเป็น Organic อัตโนมัติลดภาระการกด
+                    finalCampaignSelect.value = 'Organic';
+                }
+            }
+
             let deadlineMsg = '';
             let isExpired = false;
             
@@ -436,16 +555,13 @@
                 if (reschedContainer) {
                     reschedContainer.style.display = 'block';
                     
-                    if (count >= 2) {
-                        warnEl.innerHTML = `<i class="fa-solid fa-triangle-exclamation"></i> ผู้สมัครรายนี้เลื่อนรอบอบรมครบ 2 ครั้งแล้ว ห้ามเลื่อนอีก`;
-                        reschedDatePicker.set('clickOpens', false);
-                        document.getElementById('newRescheduleDate').classList.add('bg-light', 'text-muted');
-                        document.getElementById('newRescheduleDate').placeholder = "สิทธิ์เลื่อนนัดเต็มแล้ว";
-                    } else if (isExpired) {
-                        warnEl.innerHTML = `<i class="fa-solid fa-triangle-exclamation"></i> หมดเขตเลื่อนรอบ (เกิน ${RESCHEDULE_LIMIT_DAYS} วัน)${deadlineMsg}`;
-                        reschedDatePicker.set('clickOpens', false);
-                        document.getElementById('newRescheduleDate').classList.add('bg-light', 'text-muted');
-                        document.getElementById('newRescheduleDate').placeholder = "หมดสิทธิ์เลื่อนนัด";
+                    if (count >= 2 || isExpired) {
+                        // 🌟 ปลดล็อกการเลื่อนเกิน 2 ครั้ง หรือ เกิน 30 วัน แต่บังคับให้ระบุเหตุผล
+                        let reasonText = count >= 2 ? `เลื่อนรอบอบรมครบ 2 ครั้งแล้ว` : `หมดเขตเลื่อนรอบ (เกิน ${RESCHEDULE_LIMIT_DAYS} วัน)`;
+                        warnEl.innerHTML = `<i class="fa-solid fa-triangle-exclamation text-danger"></i> ผู้สมัครรายนี้${reasonText} (หากต้องการอนุโลมให้เลื่อนต่อ ต้องระบุเหตุผลในโน้ต) <span class="text-secondary">${deadlineMsg}</span>`;
+                        reschedDatePicker.set('clickOpens', true);
+                        document.getElementById('newRescheduleDate').classList.remove('bg-light', 'text-muted');
+                        document.getElementById('newRescheduleDate').placeholder = "เลือกวันนัดใหม่ (กรณีอนุโลม)...";
                     } else {
                         warnEl.innerHTML = `ประวัติการเลื่อนรอบ: ${count} / 2 ครั้ง <span class="text-secondary">${deadlineMsg}</span>`;
                         reschedDatePicker.set('clickOpens', true);
@@ -473,27 +589,47 @@
                 const fd = new FormData(this);
                 const leadId = fd.get('leadId');
                 
-                const originalDateRaw = fd.get('trainDate'); 
-                const newReschedDateRaw = fd.get('newRescheduleDate'); 
+                // 🌟 ดึงค่าผ่าน DOM โดยตรงเพื่อความชัวร์ ป้องกันระบบ FormData มองไม่เห็นค่าตอนแก้ผ่าน JS
+                const originalDateRaw = document.getElementById('trainDate') ? document.getElementById('trainDate').value : fd.get('trainDate'); 
+                const newReschedDateRaw = document.getElementById('newRescheduleDate') ? document.getElementById('newRescheduleDate').value : fd.get('newRescheduleDate'); 
+                
+                const notesEl = document.getElementById('trainNotes');
+                const notesVal = notesEl ? notesEl.value : (fd.get('notes') || '');
                 
                 let finalTrainDate = formatDateForDB(originalDateRaw); 
                 let currentCount = parseInt(fd.get('rescheduleCount')) || 0;
 
                 if (newReschedDateRaw && newReschedDateRaw.trim() !== '') {
-                    if (currentCount >= 2) {
-                        Swal.fire('ปฏิเสธการบันทึก', 'ผู้สมัครเลื่อนอบรมครบ 2 ครั้งแล้ว ไม่สามารถเลื่อนได้อีก', 'error');
-                        return;
-                    }
                     
-                    const transferDateDB = formatDateForDB(fd.get('transferDate'));
+                    // 🌟 ตรวจสอบว่าเกินกำหนด 30 วันหรือไม่
+                    let isOverTimeLimit = false;
+                    const transferDateRaw = document.getElementById('transferDate') ? document.getElementById('transferDate').value : fd.get('transferDate');
+                    const transferDateDB = formatDateForDB(transferDateRaw);
                     if (transferDateDB) {
                         const limitDate = new Date(transferDateDB);
                         limitDate.setDate(limitDate.getDate() + RESCHEDULE_LIMIT_DAYS);
                         const selectedNewDate = new Date(formatDateForDB(newReschedDateRaw));
                         
                         if (selectedNewDate > limitDate) {
-                            Swal.fire('ปฏิเสธการบันทึก', `ไม่สามารถเลื่อนรอบได้ เนื่องจากเกินกำหนด ${RESCHEDULE_LIMIT_DAYS} วัน<br><br><b>เลื่อนได้ถึง: ${formatDateForDisplay(limitDate.toISOString())}</b>`, 'error');
-                            return;
+                            isOverTimeLimit = true;
+                        }
+                    }
+
+                    // 🌟 ดักจับ (Validation) บังคับกรอกโน้ต กรณีอนุโลมเลื่อนรอบเกิน 2 ครั้ง หรือ เกินกำหนด 30 วัน
+                    if (currentCount >= 2 || isOverTimeLimit) {
+                        // ดึงข้อมูลโน้ตเก่ามาเช็ค
+                        const existingTrain = state.trainings.find(t => (t.lead_id === leadId || t.leadid === leadId || t.Lead_ID === leadId));
+                        const oldNote = existingTrain ? (existingTrain.notes || existingTrain.Notes || '') : '';
+                        
+                        // เช็คว่า โน้ตว่างเปล่า หรือ โน้ตยังคงเหมือนเดิมเป๊ะๆ (ไม่ได้พิมพ์เหตุผลใหม่เพิ่ม)
+                        if (notesVal.trim() === '' || notesVal.trim() === oldNote.trim()) {
+                            let reasonMsg = currentCount >= 2 ? 'เลื่อนนัดครบโควตาแล้ว' : `เลยกำหนด ${RESCHEDULE_LIMIT_DAYS} วันแล้ว`;
+                            Swal.fire({
+                                icon: 'warning',
+                                title: 'ต้องระบุเหตุผลการอนุโลม',
+                                text: `ผู้สมัคร${reasonMsg} หากต้องการอนุโลมให้เลื่อนต่อ กรุณาพิมพ์เหตุผลใหม่เพิ่มเติมลงในช่อง "โน้ตเพิ่มเติม/บันทึกการอบรม" เสมอ`
+                            });
+                            return; // หยุดการทำงานทันที
                         }
                     }
 
@@ -522,13 +658,18 @@
                     payload[getCol(['reschedule_count', 'reschedulecount', 'RescheduleCount'])] = currentCount;
                     payload[getCol(['status', 'Status'])] = fd.get('status');
                     
-                    const notesVal = fd.get('notes') || '';
                     const notesCol = getCol(['notes', 'Notes']);
                     if(notesCol || dbKeys.length === 0) { 
                         payload[notesCol || 'notes'] = notesVal;
                     }
 
-                    const logMsg = `[${leadId}] สถานะ: ${fd.get('status')} | นัด: ${formatDateForDisplay(finalTrainDate) || '-'} | เลื่อน: ${currentCount}/2 | Note: ${notesVal}`;
+                    // 🌟 นำค่า Final Campaign ที่เลือก เซฟลงฐานข้อมูลโดยตรง
+                    const finalCampEl = document.getElementById('trainFinalCampaign');
+                    const finalCampVal = finalCampEl ? finalCampEl.value : (fd.get('finalCampaign') || '');
+                    
+                    payload['final_campaign'] = finalCampVal;
+
+                    const logMsg = `[${leadId}] สถานะ: ${fd.get('status')} | นัด: ${formatDateForDisplay(finalTrainDate) || '-'} | เลื่อน: ${currentCount}/2 | ใช้สิทธิ์: ${finalCampVal} | Note: ${notesVal}`;
 
                     const existingTrain = state.trainings.find(t => (t.lead_id === leadId || t.leadid === leadId || t.Lead_ID === leadId));
 
@@ -597,6 +738,13 @@
                         noteText = parts[1];
                     }
                     
+                    // 🌟 ตรวจสอบว่ามีข้อมูลการเลื่อนเกินโควต้าหรือไม่
+                    let overQuotaBadge = '';
+                    const matchCount = mainChange.match(/เลื่อน:\s*(\d+)\/2/);
+                    if (matchCount && parseInt(matchCount[1]) > 2) {
+                        overQuotaBadge = `<span class="badge bg-danger ms-2" style="font-size: 0.65rem;"><i class="fa-solid fa-triangle-exclamation"></i> อนุโลมเลื่อนเกินโควต้า</span>`;
+                    }
+                    
                     const d = new Date(log.timestamp || log.Timestamp || log.created_at);
                     let ts = '-';
                     if (!isNaN(d.getTime())) {
@@ -608,7 +756,7 @@
                     <div class="border-start border-success border-3 ps-3 mb-4 position-relative">
                         <div class="position-absolute top-0 start-0 translate-middle bg-success rounded-circle" style="width: 14px; height: 14px;"></div>
                         <div class="d-flex justify-content-between align-items-center mb-2">
-                            <div class="fw-bold text-dark fs-6">${mainChange}</div>
+                            <div class="fw-bold text-dark fs-6">${mainChange} ${overQuotaBadge}</div>
                             <div class="text-muted small"><i class="fa-regular fa-clock me-1"></i> ${ts}</div>
                         </div>
                         <div class="bg-light p-3 rounded small text-secondary border shadow-sm">
