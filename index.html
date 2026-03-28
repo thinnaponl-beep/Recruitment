@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <title>PRS - Recruitment System</title>
+    <!-- CSS CDNs -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
+    <link href="https://cdn.jsdelivr.net/npm/tom-select@2.2.2/dist/css/tom-select.bootstrap5.min.css" rel="stylesheet">
+    
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    <script type="text/javascript" src="https://www.gstatic.com/charts/loader.js"></script>
+
+    <?!= include('_Styles'); ?>
+</head>
+<body class="bg-light">
+    
+    <!-- Loading Screen -->
+    <div id="loading-overlay">
+        <div class="spinner-border text-primary" role="status"></div>
+        <div class="mt-3 text-primary fw-bold">กำลังโหลดข้อมูล...</div>
+    </div>
+
+    <!-- MAIN APP WRAPPER -->
+    <div id="wrapper">
+        <!-- SIDEBAR -->
+        <nav id="sidebar">
+            <div class="sidebar-header">
+                <h3><i class="fa-solid fa-users-viewfinder"></i> <span> Recruitment Team</span></h3>
+            </div>
+            <ul class="list-unstyled components">
+                <li class="active" id="nav-leads">
+                    <a href="javascript:void(0);" onclick="switchMenu('leads')">
+                        <i class="fa-solid fa-address-card me-2"></i> <span>Leads (Raw)</span>
+                    </a>
+                </li>
+                <li id="nav-pvalue">
+                    <a href="javascript:void(0);" onclick="switchMenu('pvalue')">
+                        <i class="fa-solid fa-star me-2"></i> <span>ประเมิน (P-Value)</span>
+                    </a>
+                </li>
+                <li id="nav-training">
+                    <a href="javascript:void(0);" onclick="switchMenu('training')">
+                        <i class="fa-solid fa-calendar-check me-2"></i> <span>Training Calendar</span>
+                    </a>
+                </li>
+                <li id="nav-promotions">
+                    <a href="javascript:void(0);" onclick="switchMenu('promotions')">
+                        <i class="fa-solid fa-bullhorn me-2"></i> <span>ปฏิทินโปรโมชั่น</span>
+                    </a>
+                </li>
+                <li id="nav-settings">
+                    <a href="javascript:void(0);" onclick="switchMenu('settings')">
+                        <i class="fa-solid fa-cogs me-2"></i> <span>Settings</span>
+                    </a>
+                </li>
+            </ul>
+        </nav>
+
+        <!-- MAIN CONTENT -->
+        <div id="content-wrapper">
+            <!-- NAVBAR -->
+            <nav class="navbar navbar-light bg-white shadow-sm px-4 py-3">
+                <div class="d-flex align-items-center">
+                    <button type="button" id="sidebarCollapse" class="btn btn-light me-3 border shadow-sm">
+                        <i class="fa-solid fa-bars"></i>
+                    </button>
+                    <h4 class="mb-0 text-dark fw-bold" id="navbarTitle"><i class="fa-solid fa-list-check text-primary"></i> ข้อมูลผู้สมัคร (Leads)</h4>
+                </div>
+                
+                <div class="ms-auto d-flex align-items-center gap-3" id="navbar-actions">
+                    <!-- 🌟 ส่วนแสดงชื่อผู้ใช้ (ดึงจากระบบอัตโนมัติ) -->
+                    <div class="d-flex align-items-center gap-2 bg-light border px-3 py-1 rounded-pill shadow-sm">
+                        <div class="bg-primary text-white rounded-circle d-flex align-items-center justify-content-center" style="width: 28px; height: 28px; font-size: 12px;">
+                            <i class="fa-solid fa-user"></i>
+                        </div>
+                        <span id="currentUserDisplay" class="fw-bold small text-primary">กำลังตรวจสอบสิทธิ์...</span>
+                    </div>
+
+                    <button class="btn btn-primary shadow-sm" id="btnAddLead" data-bs-toggle="modal" data-bs-target="#addLeadModal">
+                        <i class="fa-solid fa-plus"></i> เพิ่มผู้สมัครใหม่
+                    </button>
+                </div>
+            </nav>
+
+            <!-- PAGE SECTIONS -->
+            <div id="page-leads" class="page-section">
+                <?!= include('page_leads'); ?>
+            </div>
+            <div id="page-pvalue" class="page-section" style="display: none;">
+                <?!= include('page_pvalue'); ?>
+            </div>
+            <div id="page-promotions" class="page-section" style="display: none;">
+                <?!= include('page_promotions'); ?>
+            </div>
+            <!-- 🌟 เพิ่ม Container สำหรับหน้า Training -->
+            <div id="page-training" class="page-section" style="display: none;">
+                <?!= include('page_training'); ?>
+            </div>
+            <div id="page-settings" class="page-section" style="display: none;">
+                <?!= include('page_settings'); ?>
+            </div>
+        </div>
+    </div>
+
+     <!-- JS CDNs -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
+    <script src="https://npmcdn.com/flatpickr/dist/l10n/th.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/tom-select@2.2.2/dist/js/tom-select.complete.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.0/Sortable.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
+    <!-- 🌟 ตั้งค่าการเชื่อมต่อ Supabase -->
+    <script>
+        const supabaseUrl = 'https://luqalaleuexlenrnvipo.supabase.co'; 
+        const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imx1cWFsYWxldWV4bGVucm52aXBvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQ1NzUxNjMsImV4cCI6MjA5MDE1MTE2M30.f7lF1rewM58Q4q1ENf_2eP7fyPTFhQFPwMYd_UUDNPw'; 
+        window.supabase = window.supabase.createClient(supabaseUrl, supabaseKey);
+    </script>
+    
+    <!-- แทรกไฟล์ JavaScript ที่แยกย่อยไว้ทั้งหมด -->
+    <?!= include('_Scripts_Core'); ?>
+    <?!= include('_Scripts_Leads'); ?>
+    <?!= include('_Scripts_PValue'); ?>
+    <?!= include('_Scripts_Promotions'); ?>
+    <?!= include('_Scripts_Training'); ?> <!-- 🌟 ดึงไฟล์ Script Training -->
+    <?!= include('_Scripts_Settings'); ?>
+</body>
+</html>
