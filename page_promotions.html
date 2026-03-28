@@ -1,0 +1,225 @@
+<div class="container-fluid p-4">
+    <!-- Navigation Tabs -->
+    <ul class="nav nav-pills mb-4 bg-white p-2 rounded shadow-sm border" id="promoMainTab" role="tablist">
+        <li class="nav-item" role="presentation">
+            <button class="nav-link active fw-bold px-4" id="tab-promo-btn" data-bs-toggle="pill" data-bs-target="#tab-promo" type="button" onclick="setTimeout(drawPromoGanttChart, 200)">
+                <i class="fa-solid fa-bullhorn me-2"></i> แคมเปญ / โปรโมชั่น
+            </button>
+        </li>
+        <li class="nav-item" role="presentation">
+            <button class="nav-link fw-bold px-4" id="tab-referrer-btn" data-bs-toggle="pill" data-bs-target="#tab-referrer" type="button" onclick="setTimeout(drawReferrerGanttChart, 200)">
+                <i class="fa-solid fa-users me-2"></i> โค้ดอินฟลู / ผู้แนะนำ
+            </button>
+        </li>
+    </ul>
+
+    <div class="tab-content" id="promoMainTabContent">
+        <!-- ==============================================
+             TAB 1: PROMOTIONS
+             ============================================== -->
+        <div class="tab-pane fade show active" id="tab-promo" role="tabpanel">
+            <!-- Header & Add Button -->
+            <div class="d-flex justify-content-between align-items-center mb-4">
+                <div>
+                    <h5 class="mb-0 fw-bold text-dark"><i class="fa-solid fa-bullhorn text-danger me-2"></i> ปฏิทินโปรโมชั่น (Promotions)</h5>
+                    <small class="text-muted">จัดการโปรโมชั่นและแคมเปญต่างๆ ระบบจะนำไปผูกกับหน้าข้อมูลผู้สมัครโดยอัตโนมัติ (ซ่อนเมื่อหมดเวลา)</small>
+                </div>
+                <button class="btn btn-danger shadow-sm fw-bold" onclick="openPromoModal()">
+                    <i class="fa-solid fa-plus"></i> เพิ่มโปรโมชั่น
+                </button>
+            </div>
+
+            <!-- Dashboard Cards for Promos -->
+            <div id="promotionsDashboardCards"></div>
+
+            <!-- Gantt Chart Container (Google Timeline) -->
+            <div class="card shadow-sm border-0 mb-4">
+                <div class="card-body">
+                    <div id="promoTimeline" style="height: 250px; width: 100%;">
+                        <div class="d-flex justify-content-center align-items-center h-100 text-muted">
+                            <div class="spinner-border spinner-border-sm me-2" role="status"></div> กำลังโหลดแผนงาน...
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Data Table -->
+            <div class="card shadow-sm border-0">
+                <div class="card-body p-0">
+                    <div class="table-responsive">
+                        <table class="table table-hover align-middle mb-0">
+                            <thead class="table-light">
+                                <tr>
+                                    <th class="text-center ps-3" style="width: 80px;">ลำดับ</th>
+                                    <th>รหัสโปรโมชั่น</th>
+                                    <th>ชื่อแคมเปญ / โปรโมชั่น</th>
+                                    <th>ระยะเวลา (Start - End)</th>
+                                    <th>สถานะระบบ</th>
+                                    <th class="text-center pe-3">จัดการ</th>
+                                </tr>
+                            </thead>
+                            <tbody id="promosTableBody">
+                                <!-- JS จะสร้าง Rows ตรงนี้ -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ==============================================
+             TAB 2: REFERRERS (อินฟลูเอนเซอร์ / ผู้แนะนำ)
+             ============================================== -->
+        <div class="tab-pane fade" id="tab-referrer" role="tabpanel">
+            <!-- Header & Add Button -->
+            <div class="d-flex justify-content-between align-items-center mb-4">
+                <div>
+                    <h5 class="mb-0 fw-bold text-dark"><i class="fa-solid fa-users text-primary me-2"></i> โค้ดอินฟลู / ผู้แนะนำ (Referrers)</h5>
+                    <small class="text-muted">สร้างโค้ดสำหรับ Influencer หรือบุคคลที่แนะนำ เมื่อถึงเวลาหมดเขต ระบบจะซ่อนตัวเลือกนี้ในฟอร์มประเมินให้อัตโนมัติ</small>
+                </div>
+                <button class="btn btn-primary shadow-sm fw-bold" onclick="openReferrerModal()">
+                    <i class="fa-solid fa-plus"></i> เพิ่มผู้แนะนำใหม่
+                </button>
+            </div>
+
+            <!-- Dashboard Cards for Referrers -->
+            <div id="referrersDashboardCards"></div>
+
+            <!-- Gantt Chart Container -->
+            <div class="card shadow-sm border-0 mb-4">
+                <div class="card-body">
+                    <div id="referrerTimeline" style="height: 250px; width: 100%;">
+                        <div class="d-flex justify-content-center align-items-center h-100 text-muted">
+                            <div class="spinner-border spinner-border-sm me-2" role="status"></div> กำลังโหลดแผนงาน...
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Data Table -->
+            <div class="card shadow-sm border-0">
+                <div class="card-body p-0">
+                    <div class="table-responsive">
+                        <table class="table table-hover align-middle mb-0">
+                            <thead class="table-light">
+                                <tr>
+                                    <th class="text-center ps-3" style="width: 80px;">ลำดับ</th>
+                                    <th>รหัสอ้างอิง</th>
+                                    <th>ชื่อผู้แนะนำ / โค้ดโปรโมท</th>
+                                    <th>ระยะเวลา (Start - End)</th>
+                                    <th>สถานะระบบ</th>
+                                    <th class="text-center pe-3">จัดการ</th>
+                                </tr>
+                            </thead>
+                            <tbody id="referrersTableBody">
+                                <!-- JS จะสร้าง Rows ตรงนี้ -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ========================================================
+     MODAL 1: ฟอร์มเพิ่ม/แก้ไข โปรโมชั่น
+     ======================================================== -->
+<div class="modal fade" id="promoModal" data-bs-backdrop="static" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content border-0 shadow-lg">
+            <div class="modal-header border-0 pb-0">
+                <h5 class="modal-title fw-bold text-danger" id="promoModalTitle"><i class="fa-solid fa-bullhorn"></i> เพิ่มโปรโมชั่นใหม่</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <form id="promoForm">
+                <input type="hidden" name="promoId" id="promoId">
+                <div class="modal-body p-4">
+                    <div class="mb-3">
+                        <label class="form-label fw-bold small text-muted">ชื่อโปรโมชั่น *</label>
+                        <input type="text" class="form-control fw-bold text-primary" name="promoName" id="promoName" required placeholder="เช่น แคมเปญแนะนำเพื่อน เม.ย.">
+                    </div>
+                    
+                    <div class="row mb-3">
+                        <div class="col-6">
+                            <label class="form-label fw-bold small text-muted">วันที่เริ่มต้น *</label>
+                            <input type="text" class="form-control" name="startDate" id="promoStartDate" required>
+                        </div>
+                        <div class="col-6">
+                            <label class="form-label fw-bold small text-muted">วันที่สิ้นสุด *</label>
+                            <input type="text" class="form-control" name="endDate" id="promoEndDate" required>
+                        </div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label fw-bold small text-muted">รายละเอียด (Description)</label>
+                        <textarea class="form-control" name="description" id="promoDesc" rows="3" placeholder="เงื่อนไข ค่าตอบแทน หรือข้อมูลแคมเปญ..."></textarea>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label fw-bold small text-muted">สถานะการแสดงผล *</label>
+                        <select class="form-select" name="status" id="promoStatus" required>
+                            <option value="Active" selected>ใช้งาน (Active)</option>
+                            <option value="Inactive">ปิดใช้งานชั่วคราว (Inactive)</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="modal-footer border-top bg-light">
+                    <button type="button" class="btn btn-outline-secondary px-4 fw-bold" data-bs-dismiss="modal">ยกเลิก</button>
+                    <button type="submit" class="btn btn-danger px-5 fw-bold">บันทึกโปรโมชั่น</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- ========================================================
+     MODAL 2: ฟอร์มเพิ่ม/แก้ไข ผู้แนะนำ (Referrer)
+     ======================================================== -->
+<div class="modal fade" id="referrerModal" data-bs-backdrop="static" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content border-0 shadow-lg">
+            <div class="modal-header border-0 pb-0">
+                <h5 class="modal-title fw-bold text-primary" id="referrerModalTitle"><i class="fa-solid fa-user-plus"></i> เพิ่มผู้แนะนำใหม่ / โค้ดอินฟลู</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <form id="referrerForm">
+                <input type="hidden" name="refId" id="refId">
+                <div class="modal-body p-4">
+                    <div class="mb-3">
+                        <label class="form-label fw-bold small text-muted">ชื่อผู้แนะนำ หรือ โค้ดโปรโมท *</label>
+                        <input type="text" class="form-control fw-bold text-primary" name="refName" id="refName" required placeholder="เช่น INF-MARIO, พี่สมหมาย">
+                    </div>
+                    
+                    <div class="row mb-3">
+                        <div class="col-6">
+                            <label class="form-label fw-bold small text-muted">วันที่เริ่มต้น *</label>
+                            <input type="text" class="form-control" name="startDate" id="refStartDate" required>
+                        </div>
+                        <div class="col-6">
+                            <label class="form-label fw-bold small text-muted">วันที่สิ้นสุด *</label>
+                            <input type="text" class="form-control" name="endDate" id="refEndDate" required>
+                        </div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label fw-bold small text-muted">รายละเอียด (Description)</label>
+                        <textarea class="form-control" name="description" id="refDesc" rows="3" placeholder="ระบุช่องทาง โซเชียล หรือรายละเอียดเพิ่มเติม..."></textarea>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label fw-bold small text-muted">สถานะการแสดงผล *</label>
+                        <select class="form-select" name="status" id="refStatus" required>
+                            <option value="Active" selected>ใช้งาน (Active)</option>
+                            <option value="Inactive">ปิดใช้งานชั่วคราว (Inactive)</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="modal-footer border-top bg-light">
+                    <button type="button" class="btn btn-outline-secondary px-4 fw-bold" data-bs-dismiss="modal">ยกเลิก</button>
+                    <button type="submit" class="btn btn-primary px-5 fw-bold">บันทึกผู้แนะนำ</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
