@@ -1,0 +1,758 @@
+<script>
+    // ==========================================
+    // ⭐ 0. Helper: ระบบบันทึก Log อัจฉริยะ 
+    // ==========================================
+     async function writeLogToSupabase(action, module, details) {
+        const userEmail = state.currentUser?.email || 'System';
+        const logId = "LOG-" + new Date().getTime(); 
+        
+        // 🌟 แก้ไข: จัดการเวลาให้เป็น Local Time (เวลาไทย) ป้องกันเวลาช้าไป 7 ชั่วโมง
+        const now = new Date();
+        const year = now.getFullYear();
+        const month = String(now.getMonth() + 1).padStart(2, '0');
+        const day = String(now.getDate()).padStart(2, '0');
+        const hours = String(now.getHours()).padStart(2, '0');
+        const minutes = String(now.getMinutes()).padStart(2, '0');
+        const seconds = String(now.getSeconds()).padStart(2, '0');
+        const tsStr = `${year}-${month}-${day}T${hours}:${minutes}:${seconds}`; 
+
+        try {
+            const { data: sample } = await supabase.from('db_logs').select('*').limit(1);
+            const dbKeys = (sample && sample.length > 0) ? Object.keys(sample[0]) : [];
+            const getCol = (names) => names.find(k => dbKeys.includes(k)) || names[0];
+
+            let payload = {};
+            payload[getCol(['logid', 'log_id', 'Log_ID', 'id'])] = logId;
+            payload[getCol(['useremail', 'user_email', 'UserEmail', 'email'])] = userEmail;
+            payload[getCol(['action', 'Action'])] = action;
+            payload[getCol(['module', 'Module'])] = module;
+            payload[getCol(['details', 'Details'])] = details;
+
+            const tsCol = getCol(['timestamp', 'Timestamp', 'created_at', 'createdat']);
+            if (dbKeys.includes(tsCol) || dbKeys.length === 0) { 
+                payload[tsCol] = tsStr;
+            }
+
+            await supabase.from('db_logs').insert([payload]);
+        } catch(e) { 
+            console.error("Log error (ignored):", e); 
+        }
+    }
+
+    // ==========================================
+    // ⭐ 1. ฟังก์ชันแสดงผลหน้า P-Value (Dashboard & Table)
+    // ==========================================
+    
+    if (typeof state.pValDateRange === 'undefined') {
+        state.pValDateRange = { start: null, end: null };
+    }
+    if (typeof state.pValFilter === 'undefined') {
+        state.pValFilter = 'All';
+        state.pAdminFilter = 'All';
+        state.pSearch = '';
+    }
+
+    let pValueDateFilterControl = null;
+
+    function renderPValueDashboard() {
+        if (!pValueDateFilterControl && typeof flatpickr !== 'undefined') {
+            const pFilterEl = document.getElementById('pValueDateFilter');
+            if (pFilterEl) {
+                pValueDateFilterControl = flatpickr(pFilterEl, {
+                    locale: "th",
+                    mode: "range",
+                    dateFormat: "d/m/Y",
+                    placeholder: "เลือกช่วงวันที่...",
+                    onChange: function(selectedDates) {
+                        if (selectedDates.length === 2) {
+                            const start = selectedDates[0];
+                            start.setHours(0,0,0,0); 
+                            const end = selectedDates[1];
+                            end.setHours(23,59,59,999); 
+                            
+                            state.pValDateRange = { start: start, end: end };
+                            applyPValueFilters(); 
+                        } else if (selectedDates.length === 0) {
+                            state.pValDateRange = { start: null, end: null };
+                            applyPValueFilters();
+                        }
+                    }
+                });
+            }
+        }
+
+        const qualifiedLeads = state.leads.filter(l => {
+            const res = l.ContactResult || l.contact_result || l.contactresult;
+            return (res === 'Add Line เรียบร้อย' || res === 'แอดไลน์แล้ว');
+        });
+        
+        const pCounts = { 'Total': qualifiedLeads.length, 'Waiting': 0, 'P100': 0, 'P90': 0, 'P80': 0, 'P50': 0, 'P00': 0 };
+        const adminCounts = { 'Unassigned': 0 };
+        
+        // 🌟 กรองรายชื่อแอดมิน: นำเฉพาะคนที่ไม่ใช่นักพัฒนา (is_dev !== true) มาแสดงในแถบตัวกรอง
+        const displayAdmins = state.admins.filter(a => !a.is_dev);
+
+        displayAdmins.forEach(a => adminCounts[a.email] = 0);
+
+        qualifiedLeads.forEach(l => {
+            let p = l.P_Value || l.p_value || l.pvalue || 'Waiting';
+            if (pCounts[p] !== undefined) pCounts[p]++;
+            else pCounts[p] = 1; 
+
+            let a = l.Assigned_Admin || l.assigned_admin || l.assignedadmin;
+            if (!a || a === 'Auto / รอ Assign' || a === 'Auto' || a === 'auto' || String(a).trim() === '') {
+                adminCounts['Unassigned']++;
+            } else {
+                let matched = state.admins.find(admin => admin.email === a || admin.name === a);
+                let key = matched ? matched.email : a;
+                // นับคะแนนเฉพาะแอดมินที่ไม่ใช่ Dev
+                if (adminCounts[key] !== undefined) adminCounts[key]++;
+            }
+        });
+
+        const pConfigs = [
+            { id: 'All', label: 'ทั้งหมด', count: pCounts['Total'], color: '#64748b' }, 
+            { id: 'Waiting', label: 'รอประเมิน', count: pCounts['Waiting'], color: '#f59e0b' }, 
+            { id: 'P100', label: 'P100 (ผ่าน/จอง)', count: pCounts['P100'], color: '#10b981' }, 
+            { id: 'P90', label: 'P90 (รอโอนจอง)', count: pCounts['P90'], color: '#3b82f6' }, 
+            { id: 'P80', label: 'P80 (สนใจ)', count: pCounts['P80'], color: '#8b5cf6' }, 
+            { id: 'P50', label: 'P50 (ติดต่อไม่ได้)', count: pCounts['P50'], color: '#f97316' }, 
+            { id: 'P00', label: 'P00 (ไม่ผ่าน)', count: pCounts['P00'], color: '#ef4444' } 
+        ];
+
+        let pCardsHtml = '<div class="row row-cols-2 row-cols-md-4 row-cols-lg-7 g-2 mb-3">';
+        pConfigs.forEach(c => {
+            const isActive = state.pValFilter === c.id;
+            const activeStyle = isActive ? `box-shadow: 0 0 0 3px rgba(0,0,0,0.05); border-color: ${c.color} !important; background-color: ${c.color}15; transform: translateY(-2px);` : '';
+            const textStyle = isActive ? `color: ${c.color} !important;` : '';
+
+            pCardsHtml += `
+            <div class="col">
+                <div class="card h-100 shadow-sm border" style="cursor: pointer; transition: all 0.2s; border-left: 4px solid ${c.color} !important; ${activeStyle}" onclick="setPValueFilter('${c.id}')">
+                    <div class="card-body p-2 text-center">
+                        <div class="small fw-bold text-muted mb-1" style="font-size: 0.75rem; ${textStyle}">${c.label}</div>
+                        <h4 class="mb-0 fw-bold" style="color: ${c.color};">${c.count}</h4>
+                    </div>
+                </div>
+            </div>`;
+        });
+        pCardsHtml += '</div>';
+
+        const unassignedCount = adminCounts['Unassigned'];
+        let searchHtml = `
+            <div class="input-group input-group-sm shadow-sm" style="max-width: 250px; border-radius: 20px; overflow: hidden;">
+                <span class="input-group-text bg-white border-end-0 px-2"><i class="fa-solid fa-search text-muted"></i></span>
+                <input type="text" id="pSearchInput" class="form-control border-start-0 ps-0 shadow-none" placeholder="ค้นหาชื่อ, เบอร์โทร..." value="${state.pSearch}" oninput="handlePValueSearch(this.value)">
+                <button id="pSearchClearBtn" class="btn btn-white border-top border-bottom border-end text-muted shadow-none" style="display: ${state.pSearch ? 'block' : 'none'};" onclick="clearPValueSearch()"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+        `;
+
+        let adminBtnsHtml = `
+            <div class="d-flex align-items-center gap-2 overflow-auto" style="white-space: nowrap;">
+                <span class="fw-bold text-muted small me-1"><i class="fa-solid fa-filter text-primary me-1"></i> ดูเคสของ:</span>
+                <button class="btn btn-sm ${state.pAdminFilter === 'All' ? 'btn-dark shadow-sm' : 'btn-outline-secondary bg-white'} rounded-pill px-3 fw-bold" onclick="setAdminFilter('All')">ทั้งหมด (${pCounts.Total})</button>
+                <button class="btn btn-sm ${state.pAdminFilter === 'Unassigned' ? 'btn-danger shadow-sm' : 'btn-outline-danger bg-white'} rounded-pill px-3 fw-bold" onclick="setAdminFilter('Unassigned')">รอจ่ายงาน (${unassignedCount})</button>
+        `;
+        
+        // 🌟 แสดงปุ่มกรองแอดมินเฉพาะคนที่ไม่ใช่ Dev
+        displayAdmins.forEach(a => {
+            const count = adminCounts[a.email] || 0;
+            const isActive = state.pAdminFilter === a.email;
+            const btnClass = isActive ? 'btn-info text-dark shadow-sm' : 'btn-outline-info text-dark bg-white';
+            adminBtnsHtml += `<button class="btn btn-sm ${btnClass} rounded-pill px-3 fw-bold" onclick="setAdminFilter('${a.email}')"><i class="fa-solid fa-user-circle me-1"></i> ${a.name || a.email} (${count})</button>`;
+        });
+        adminBtnsHtml += `</div>`;
+
+        let bulkAssignHtml = `
+            <button class="btn btn-sm ${unassignedCount > 0 ? 'btn-primary' : 'btn-secondary'} fw-bold shadow-sm px-3 py-1 ms-auto" 
+                    onclick="triggerBulkAutoAssign()" ${unassignedCount === 0 ? 'disabled' : ''}>
+                <i class="fa-solid fa-wand-magic-sparkles text-warning me-1"></i> 
+                สุ่มจ่ายงาน (${unassignedCount})
+            </button>`;
+
+        let toolbarHtml = `
+        <div class="d-flex flex-wrap align-items-center gap-3 mb-4 bg-white p-2 px-3 rounded shadow-sm border">
+            ${searchHtml}
+            <div class="vr d-none d-md-block text-muted" style="width: 2px; opacity: 0.15;"></div>
+            ${adminBtnsHtml}
+            ${bulkAssignHtml}
+        </div>`;
+
+        const container = document.getElementById('pValueDashboardCards');
+        if (container) container.innerHTML = pCardsHtml + toolbarHtml;
+
+        applyPValueFilters();
+    }
+
+    function clearPValueDateFilter() {
+        if (pValueDateFilterControl) {
+            pValueDateFilterControl.clear(); 
+        }
+    }
+
+    function applyPValueFilters() {
+        const qualifiedLeads = state.leads.filter(l => {
+            const res = l.ContactResult || l.contact_result || l.contactresult;
+            return (res === 'Add Line เรียบร้อย' || res === 'แอดไลน์แล้ว');
+        });
+        let filteredLeads = qualifiedLeads;
+
+        if (state.pValDateRange && state.pValDateRange.start && state.pValDateRange.end) {
+            filteredLeads = filteredLeads.filter(l => {
+                const rDate = l.RecordDate || l.record_date || l.recorddate;
+                if (!rDate) return false;
+                
+                let rowDate;
+                if (rDate.includes('/')) {
+                    const parts = rDate.split('/');
+                    rowDate = new Date(parts[2], parts[1] - 1, parts[0]);
+                } else {
+                    rowDate = new Date(rDate);
+                }
+
+                if (isNaN(rowDate.getTime())) return false;
+                rowDate.setHours(0,0,0,0);
+                
+                return rowDate >= state.pValDateRange.start && rowDate <= state.pValDateRange.end;
+            });
+        }
+
+        if (state.pAdminFilter === 'Unassigned') {
+            filteredLeads = filteredLeads.filter(l => {
+                const a = l.Assigned_Admin || l.assigned_admin || l.assignedadmin;
+                return !a || a === 'Auto / รอ Assign' || a === 'Auto' || a === 'auto' || String(a).trim() === '';
+            });
+        } else if (state.pAdminFilter !== 'All') {
+            const selAdmin = state.admins.find(a => a.email === state.pAdminFilter);
+            const selName = selAdmin ? selAdmin.name : state.pAdminFilter;
+            
+            filteredLeads = filteredLeads.filter(l => {
+                const a = l.Assigned_Admin || l.assigned_admin || l.assignedadmin;
+                return a === state.pAdminFilter || a === selName;
+            });
+        }
+
+        if (state.pValFilter !== 'All') {
+            if (state.pValFilter === 'Waiting') {
+                filteredLeads = filteredLeads.filter(l => {
+                    const p = l.P_Value || l.p_value || l.pvalue;
+                    return !p || String(p).trim() === '';
+                });
+            } else {
+                filteredLeads = filteredLeads.filter(l => (l.P_Value === state.pValFilter || l.p_value === state.pValFilter || l.pvalue === state.pValFilter));
+            }
+        }
+
+        if (state.pSearch.trim() !== '') {
+            const query = state.pSearch.toLowerCase().trim();
+            filteredLeads = filteredLeads.filter(l => {
+                const name = l.FullName || l.full_name || l.fullname || '';
+                const phone = l.Phone || l.phone || '';
+                const notes = l.Notes || l.notes || '';
+                return name.toLowerCase().includes(query) || phone.toLowerCase().includes(query) || notes.toLowerCase().includes(query);
+            });
+        }
+
+        const clearBtn = document.getElementById('pSearchClearBtn');
+        if (clearBtn) clearBtn.style.display = state.pSearch ? 'block' : 'none';
+
+        renderPValueTable(filteredLeads);
+    }
+
+    function setPValueFilter(val) { state.pValFilter = val; renderPValueDashboard(); }
+    function setAdminFilter(val) { state.pAdminFilter = val; renderPValueDashboard(); }
+    function handlePValueSearch(val) { state.pSearch = val; applyPValueFilters(); }
+    
+    function clearPValueSearch() { 
+        state.pSearch = ''; 
+        const el = document.getElementById('pSearchInput');
+        if(el) el.value = '';
+        applyPValueFilters(); 
+    }
+
+    function renderPValueTable(data) {
+        const tbody = document.getElementById('pValueTableBody');
+        if (!tbody) return;
+
+        if(data.length === 0) {
+            tbody.innerHTML = `<tr><td colspan="10" class="text-center py-5 text-muted"><i class="fa-solid fa-inbox fs-3 mb-2 d-block"></i> ไม่พบรายชื่อผู้สมัครในหมวดหมู่นี้</td></tr>`;
+            return;
+        }
+
+        tbody.innerHTML = data.map((row, index) => {
+            const leadId = row.Lead_ID || row.lead_id || row.leadid;
+            const beneatIcon = `<svg width="16" height="16" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg" class="me-1"><path d="M50 5C25.1 5 5 25.1 5 50c0 10.4 3.6 20 9.6 27.6L10 95l18.4-4.8c7 3.1 14.8 4.8 23.1 4.8 24.9 0 45-20.1 45-45S74.9 5 50 5z" fill="#3bc2d6"/><text x="48" y="70" font-family="Arial, sans-serif" font-weight="900" font-size="50" fill="#FFFFFF" text-anchor="middle" transform="rotate(-8 50 50)">B</text></svg>`;
+            
+            const chatLnk = row.ChatLink || row.chat_link || row.chatlink;
+            const chatLinkBtn = chatLnk ? `<a href="${chatLnk}" target="_blank" class="btn btn-sm btn-light border text-primary fw-bold px-2 py-0 mt-1 d-inline-flex align-items-center" onclick="event.stopPropagation()">${beneatIcon} แชท</a>` : '<div class="text-muted small mt-1">-</div>';
+            
+            const age = row.Age || row.age;
+            const ageDisplay = age ? ` <span class="badge bg-light text-secondary border ms-1 fw-normal" style="font-size: 0.75rem;">อายุ ${age} ปี</span>` : '';
+
+            const adm = row.Assigned_Admin || row.assigned_admin || row.assignedadmin;
+            let adminCell = '';
+            if (!adm || adm === 'Auto / รอ Assign' || adm === 'Auto' || adm === 'auto' || String(adm).trim() === '') {
+                adminCell = `
+                    <div class="text-center" onclick="event.stopPropagation()">
+                        <span class="text-muted small fw-bold text-danger">- รอจ่ายงาน -</span><br>
+                        <button class="btn btn-sm btn-outline-secondary p-1 px-2 mt-1 small rounded-pill" onclick="triggerManualAssign('${leadId}')">
+                            <i class="fa-solid fa-hand-pointer me-1"></i> เลือกเอง
+                        </button>
+                    </div>
+                `;
+            } else {
+                let adminName = adm;
+                const matchedAdmin = state.admins.find(a => a.email === adm || a.name === adm);
+                if (matchedAdmin && matchedAdmin.name) adminName = matchedAdmin.name; 
+                adminCell = `
+                    <div class="d-flex align-items-center justify-content-center" onclick="event.stopPropagation()">
+                        <span class="badge bg-light text-dark border px-2 py-1"><i class="fa-solid fa-user-check small text-success me-1"></i> ${adminName}</span>
+                        <button class="btn btn-sm text-muted ms-1 p-0" onclick="triggerManualAssign('${leadId}')" title="เปลี่ยนผู้รับผิดชอบ"><i class="fa-solid fa-rotate fs-6"></i></button>
+                    </div>
+                `;
+            }
+
+            const bgCheckVal = row.BackgroundCheck || row.background_check || row.backgroundcheck || '-';
+            let bgCheckDisplay = `<span class="text-muted">-</span>`;
+            if(bgCheckVal === 'ผ่าน') bgCheckDisplay = `<span class="badge bg-success">ผ่าน</span>`;
+            else if(bgCheckVal === 'กำลังตรวจ') bgCheckDisplay = `<span class="badge bg-warning text-dark">กำลังตรวจ</span>`;
+            else if(bgCheckVal.includes('ไม่ผ่าน')) bgCheckDisplay = `<span class="badge bg-danger">ไม่ผ่าน</span>`;
+
+            const ref = row.Referrer || row.referrer;
+            const referrerDisplay = ref ? `<span class="text-secondary fw-bold small">${ref}</span>` : `<span class="text-muted">-</span>`;
+
+            const nts = row.Notes || row.notes || '-';
+            const encodedNote = encodeURIComponent(nts);
+
+            const pval = row.P_Value || row.p_value || row.pvalue;
+            const pvalDisplay = pval ? `<span class="badge bg-success">${pval}</span>` : `<span class="badge bg-warning text-dark">รอประเมิน</span>`;
+
+            const fullName = row.FullName || row.full_name || row.fullname || '-';
+            const phoneStr = row.Phone || row.phone || '-';
+            const jobTypeStr = row.JobType || row.job_type || row.jobtype || '-';
+
+            return `
+            <tr>
+                <td class="fw-bold text-center text-muted">${index + 1}</td>
+                <td class="fw-bold">${fullName}${ageDisplay}</td>
+                <td>
+                    <div class="text-nowrap"><i class="fa-solid fa-phone text-success small"></i> ${phoneStr}</div>
+                    ${chatLinkBtn}
+                </td>
+                <td><span class="badge bg-info text-dark">${jobTypeStr}</span></td>
+                <td>${pvalDisplay}</td>
+                
+                <td>${referrerDisplay}</td>
+                <td>${bgCheckDisplay}</td>
+
+                <td onclick="showFullNote(event, '${encodedNote}')">
+                    <div class="text-muted small p-1 bg-light rounded border" style="max-width: 140px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; cursor: pointer;" title="คลิกเพื่อดูบันทึกเต็ม">
+                        ${nts}
+                    </div>
+                </td>
+
+                <td class="bg-light bg-opacity-50">${adminCell}</td>
+                
+                <td class="text-center">
+                    <div class="d-flex flex-column gap-1">
+                        <button type="button" class="btn btn-sm btn-primary shadow-sm fw-bold" onclick="openAssessmentModal('${leadId}')">
+                            <i class="fa-solid fa-star"></i> ประเมิน
+                        </button>
+                        <button type="button" class="btn btn-sm btn-outline-info shadow-sm fw-bold" onclick="viewPValueHistory('${leadId}')">
+                            <i class="fa-solid fa-clock-rotate-left"></i> ดูประวัติ
+                        </button>
+                    </div>
+                </td>
+            </tr>
+            `;
+        }).join('');
+    }
+
+    // ==========================================
+    // 👤 2. ระบบจ่ายงานแบบกรองสถานะนักพัฒนาออก (Dev Mode exclusion)
+    // ==========================================
+    async function triggerBulkAutoAssign() {
+        const unassignedLeads = state.leads.filter(l => {
+            const cr = l.ContactResult || l.contact_result || l.contactresult;
+            const a = l.Assigned_Admin || l.assigned_admin || l.assignedadmin;
+            return (cr === 'Add Line เรียบร้อย' || cr === 'แอดไลน์แล้ว') && (!a || a === 'Auto / รอ Assign' || a === 'Auto' || a === 'auto' || String(a).trim() === '');
+        });
+
+        if (unassignedLeads.length === 0) return;
+
+        Swal.fire({
+            title: `จ่ายงานอัตโนมัติ ${unassignedLeads.length} เคส?`,
+            text: 'ระบบจะนำเคสทั้งหมดที่ยังไม่มีคนดูแล ไปสุ่มจ่ายให้แอดมินที่เปิดระบบ Auto-Assign ตามความเหมาะสม',
+            icon: 'question',
+            showCancelButton: true,
+            confirmButtonColor: '#3b82f6',
+            confirmButtonText: 'ยืนยันจ่ายงานทั้งหมด'
+        }).then(async (result) => {
+            if (result.isConfirmed) {
+                Swal.fire({ title: 'กำลังประมวลผล...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
+                
+                try {
+                    const leadIds = unassignedLeads.map(l => l.Lead_ID || l.lead_id || l.leadid);
+                    
+                    const { data: adminData } = await supabase.from('config_system').select('*');
+                    if (!adminData || adminData.length === 0) throw new Error("ไม่พบรายชื่อแอดมินในตาราง config_system");
+
+                    const sysKeys = Object.keys(adminData[0]);
+                    const getSysCol = (names) => names.find(k => sysKeys.includes(k)) || names[0];
+                    
+                    const autoCol = getSysCol(['autoassign_status', 'AutoAssign_Status', 'auto_assign', 'autoassign']);
+                    const emailCol = getSysCol(['adminemail', 'admin_email', 'Admin_Email', 'email']);
+                    const nameCol = getSysCol(['adminname', 'admin_name', 'Admin_Name', 'name']);
+                    const wlCol = getSysCol(['current_workload', 'Current_Workload', 'workload']);
+                    const devCol = getSysCol(['is_developer', 'Is_Developer', 'is_dev', 'isdev']); // 🌟 หาคอลัมน์ Developer
+
+                    // 🌟 กรองเฉพาะคนที่เปิด Auto และ ไม่ใช่นักพัฒนา (Dev)
+                    let activeAdmins = adminData.filter(a => {
+                        const val = String(a[autoCol] || '').trim().toUpperCase();
+                        const isDevVal = String(a[devCol] || '').trim().toUpperCase();
+                        
+                        const isAuto = (val === 'TRUE' || val === 'ON' || val === '1');
+                        const isDev = (isDevVal === 'TRUE' || isDevVal === '1');
+                        
+                        return isAuto && !isDev;
+                    });
+
+                    if (activeAdmins.length === 0) {
+                        throw new Error("ไม่มีแอดมินที่พร้อมรับงานอัตโนมัติในระบบ \n(กรุณาไปที่เมนู Settings -> เพิ่มแอดมินหรือเปิดสวิตช์รับงาน)");
+                    }
+
+                    let availableAdmins = activeAdmins.map(a => ({
+                        email: a[emailCol],
+                        name: a[nameCol] || a[emailCol],
+                        workload: parseInt(a[wlCol] || 0)
+                    }));
+
+                    const { data: sample } = await supabase.from('db_leads').select('*').limit(1);
+                    const dbKeys = (sample && sample.length > 0) ? Object.keys(sample[0]) : [];
+                    const getLeadCol = (names) => names.find(k => dbKeys.includes(k)) || names[0];
+                    
+                    const idCol = getLeadCol(['leadid', 'lead_id', 'Lead_ID']);
+                    const assignedAdminCol = getLeadCol(['assigned_admin', 'assignedadmin', 'Assigned_Admin']);
+
+                    let assignCount = 0;
+                    for (const leadId of leadIds) {
+                        availableAdmins.sort((a, b) => a.workload - b.workload);
+                        const selectedAdmin = availableAdmins[0];
+                        
+                        let updatePayload = {};
+                        updatePayload[assignedAdminCol] = selectedAdmin.email;
+
+                        const { error } = await supabase.from('db_leads').update(updatePayload).eq(idCol, leadId);
+                        if (error) throw error;
+                        
+                        selectedAdmin.workload += 1;
+                        assignCount++;
+                        
+                        const leadIndex = state.leads.findIndex(l => l.Lead_ID === leadId || l.lead_id === leadId || l.leadid === leadId);
+                        if (leadIndex > -1) {
+                            state.leads[leadIndex].Assigned_Admin = selectedAdmin.email;
+                            state.leads[leadIndex].assigned_admin = selectedAdmin.email;
+                        }
+                    }
+                    
+                    for (const admin of availableAdmins) {
+                        let wPayload = {}; 
+                        wPayload[wlCol] = admin.workload;
+                        await supabase.from('config_system').update(wPayload).eq(emailCol, admin.email);
+                    }
+                    
+                    await writeLogToSupabase('BULK_AUTO_ASSIGN', 'Leads', `สุ่มจ่ายงานจำนวน ${assignCount} เคสเรียบร้อยแล้ว`);
+                    renderPValueDashboard();
+                    Swal.fire({ icon: 'success', title: 'ดำเนินการสำเร็จ!', text: `จ่ายงานให้แอดมินเรียบร้อยแล้วทั้งหมด ${assignCount} เคส`, timer: 3000 });
+                    
+                } catch(err) {
+                    Swal.fire('ข้อผิดพลาด', err.message, 'error');
+                }
+            }
+        });
+    }
+
+    function triggerManualAssign(leadId) {
+        let adminOptions = {
+            '': '❌ ดึงเคสกลับกองกลาง (รอจ่ายงาน)'
+        };
+        
+        // 🌟 กรองเฉพาะรายชื่อแอดมินที่ไม่ใช่นักพัฒนาไปแสดงในตัวเลือก
+        state.admins.filter(a => !a.is_dev).forEach(a => { 
+            adminOptions[a.email] = a.name || a.email; 
+        });
+        
+        Swal.fire({
+            title: 'เลือกผู้รับผิดชอบ', input: 'select', inputOptions: adminOptions,
+            inputPlaceholder: '-- เลือกแอดมิน --', showCancelButton: true, confirmButtonColor: '#10b981'
+        }).then(async (result) => {
+            if (result.isConfirmed) {
+                Swal.fire({ title: 'กำลังบันทึก...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
+                
+                try {
+                    const selectedAdminEmail = result.value;
+                    const { data: sample } = await supabase.from('db_leads').select('*').limit(1);
+                    const dbKeys = (sample && sample.length > 0) ? Object.keys(sample[0]) : [];
+                    const idCol = ['leadid', 'lead_id', 'Lead_ID'].find(k => dbKeys.includes(k)) || 'leadid';
+                    
+                    const assignedAdminCol = ['assigned_admin', 'assignedadmin', 'Assigned_Admin'].find(k => dbKeys.includes(k)) || 'assigned_admin';
+
+                    let payload = {}; payload[assignedAdminCol] = selectedAdminEmail;
+                    const { error } = await supabase.from('db_leads').update(payload).eq(idCol, leadId);
+                    if (error) throw error;
+                    
+                    const logMsg = selectedAdminEmail === '' ? `[${leadId}] ดึงเคสกลับกองกลาง (รอจ่ายงาน)` : `[${leadId}] จ่ายงานให้ ${selectedAdminEmail}`;
+                    await writeLogToSupabase('MANUAL_ASSIGN', 'Leads', logMsg);
+
+                    const leadIndex = state.leads.findIndex(l => l.Lead_ID === leadId || l.lead_id === leadId || l.leadid === leadId);
+                    if (leadIndex > -1) {
+                        state.leads[leadIndex].Assigned_Admin = selectedAdminEmail;
+                        state.leads[leadIndex].assigned_admin = selectedAdminEmail;
+                    }
+
+                    renderPValueDashboard();
+                    Swal.fire({ toast: true, position: 'top-end', icon: 'success', title: 'อัปเดตผู้รับผิดชอบเรียบร้อย', showConfirmButton: false, timer: 3000 });
+                } catch(err) {
+                    Swal.fire('ข้อผิดพลาด', err.message, 'error');
+                }
+            }
+        });
+    }
+
+    // ==========================================
+    // 📝 3. ฟังก์ชันประเมิน (Assessment Modal) เติม Dropdown อัตโนมัติ 
+    // ==========================================
+    function openAssessment(leadId) {
+        Swal.fire({ 
+            title: 'ย้ายไปยังเมนู P-Value?', 
+            text: `ระบบจะพาคุณไปยังหน้าต่างการประเมิน (P-Value) สำหรับรหัส: ${leadId}`, 
+            icon: 'question', 
+            showCancelButton: true, 
+            confirmButtonText: 'ไปหน้าประเมิน', 
+            confirmButtonColor: '#10b981'
+        }).then((result) => {
+            if (result.isConfirmed) { 
+                switchMenu('pvalue');
+                setTimeout(() => openAssessmentModal(leadId), 300);
+            }
+        });
+    }
+
+    function openAssessmentModal(leadId) {
+        const lead = state.leads.find(l => l.Lead_ID === leadId || l.lead_id === leadId || l.leadid === leadId);
+        if (!lead) return;
+
+        const assessIdInput = document.getElementById('assessLeadId');
+        if (assessIdInput) assessIdInput.value = leadId;
+        
+        const assessNameSpan = document.getElementById('assessLeadName');
+        if (assessNameSpan) assessNameSpan.innerText = lead.FullName || lead.full_name || lead.fullname || 'Unknown';
+        
+        const form = document.getElementById('assessmentForm');
+        if (form) {
+            // 🌟 1. ยัดข้อมูลโปรโมชั่นลง Dropdown
+            const promoSelect = form.elements['promo'];
+            if (promoSelect) {
+                promoSelect.innerHTML = '<option value="" selected>-- ไม่ระบุโปรโมชั่น --</option>';
+                const promos = state.initialDropdowns?.Promo || [];
+                promos.forEach(p => {
+                    if (typeof p === 'object') promoSelect.add(new Option(p.name, p.id));
+                    else promoSelect.add(new Option(p, p));
+                });
+
+                const currentPromoId = lead.Promo || lead.promo_id || lead.promoid || lead.promo || '';
+                if (currentPromoId) {
+                    const isExist = promos.some(p => (typeof p === 'object' ? p.id === currentPromoId : p === currentPromoId));
+                    if (!isExist) {
+                        const oldPromo = state.promotions?.find(p => p.Promo_ID === currentPromoId || p.promo_id === currentPromoId);
+                        if (oldPromo) {
+                            const opt = new Option(`${oldPromo.Promo_Name || oldPromo.promo_name} (หมดเวลา/ปิดใช้งาน)`, currentPromoId);
+                            opt.style.color = 'red';
+                            promoSelect.add(opt);
+                        } else {
+                            const opt = new Option(`${currentPromoId} (แคมเปญเก่า)`, currentPromoId);
+                            opt.style.color = 'red';
+                            promoSelect.add(opt);
+                        }
+                    }
+                }
+                promoSelect.value = currentPromoId;
+            }
+
+            // 🌟 2. ยัดข้อมูล 'การตรวจประวัติ' ลง Dropdown 🌟
+            const bgCheckSelect = form.elements['backgroundCheck'];
+            if (bgCheckSelect && state.initialDropdowns?.BackgroundCheck) {
+                bgCheckSelect.innerHTML = '<option value="" selected>-- เลือก --</option>';
+                state.initialDropdowns.BackgroundCheck.forEach(item => {
+                    bgCheckSelect.add(new Option(item, item));
+                });
+            }
+
+            // 🌟 3. ยัดข้อมูล 'สถานะการอบรม' ลง Dropdown 🌟
+            const trainStatusSelect = form.elements['trainingStatus'];
+            if (trainStatusSelect && state.initialDropdowns?.TrainingStatus) {
+                trainStatusSelect.innerHTML = '<option value="" selected>เลือก...</option>';
+                state.initialDropdowns.TrainingStatus.forEach(item => {
+                    trainStatusSelect.add(new Option(item, item));
+                });
+            }
+
+            // 🌟 4. ยัดข้อมูล 'โน้ตเพิ่มเติม (QuickTags)' ลงในปุ่มให้กด 🌟
+            const tagsContainer = document.querySelector('#assessmentModal .tags-container');
+            if (tagsContainer && state.initialDropdowns?.QuickTags) {
+                tagsContainer.innerHTML = state.initialDropdowns.QuickTags.map(tag => 
+                    `<span class="tag-badge" onclick="appendTag(this)">${tag}</span>`
+                ).join('');
+            }
+
+            // เซ็ตค่าเดิมที่มีอยู่ในฐานข้อมูล
+            if(form.elements['pValue']) form.elements['pValue'].value = lead.P_Value || lead.p_value || lead.pvalue || '';
+            if(form.elements['trainingStatus']) form.elements['trainingStatus'].value = lead.TrainingStatus || lead.training_status || lead.trainingstatus || '';
+            if(form.elements['referrer']) form.elements['referrer'].value = lead.Referrer || lead.referrer || '';
+            if(form.elements['backgroundCheck']) form.elements['backgroundCheck'].value = lead.BackgroundCheck || lead.background_check || lead.backgroundcheck || '';
+            if(form.elements['notes']) form.elements['notes'].value = lead.Notes || lead.notes || '';
+        }
+        
+        const modalEl = document.getElementById('assessmentModal');
+        if (modalEl) bootstrap.Modal.getOrCreateInstance(modalEl).show();
+    }
+
+    document.addEventListener('DOMContentLoaded', () => {
+        const assessForm = document.getElementById('assessmentForm');
+        if (assessForm) {
+            assessForm.addEventListener('submit', async function(e) {
+                e.preventDefault();
+                const fd = new FormData(this);
+                const leadId = fd.get('leadId');
+
+                const data = { 
+                    pValue: fd.get('pValue'),
+                    trainingStatus: fd.get('trainingStatus'), 
+                    promo: fd.get('promo') || '',
+                    referrer: fd.get('referrer') || '',
+                    backgroundCheck: fd.get('backgroundCheck') || '',
+                    notes: fd.get('notes') 
+                };
+
+                Swal.fire({ title: 'กำลังบันทึกประเมิน...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
+                
+                try {
+                    const { data: sample } = await supabase.from('db_leads').select('*').limit(1);
+                    const dbKeys = (sample && sample.length > 0) ? Object.keys(sample[0]) : [];
+                    const getCol = (names) => names.find(k => dbKeys.includes(k)) || names[0];
+
+                    let payload = {};
+                    payload[getCol(['pvalue', 'p_value', 'P_Value'])] = data.pValue;
+                    payload[getCol(['trainingstatus', 'training_status', 'TrainingStatus'])] = data.trainingStatus;
+                    payload[getCol(['promo', 'promoid', 'promo_id', 'Promo'])] = data.promo;
+                    payload[getCol(['referrer', 'Referrer'])] = data.referrer;
+                    payload[getCol(['backgroundcheck', 'background_check', 'BackgroundCheck'])] = data.backgroundCheck;
+                    payload[getCol(['notes', 'Notes'])] = data.notes;
+
+                    const idCol = getCol(['leadid', 'lead_id', 'Lead_ID']);
+
+                    const { error } = await supabase.from('db_leads').update(payload).eq(idCol, leadId);
+                    if (error) throw error;
+
+                    const logDetails = `เปลี่ยน P-Value เป็น ${data.pValue} | Note: ${data.notes}`;
+                    await writeLogToSupabase('UPDATE_PVALUE', 'P-Value', `[${leadId}] ${logDetails}`);
+
+                    const leadIndex = state.leads.findIndex(l => l.Lead_ID === leadId || l.lead_id === leadId || l.leadid === leadId);
+                    if (leadIndex > -1) {
+                        state.leads[leadIndex].Promo = data.promo; 
+                        state.leads[leadIndex].promoid = data.promo;
+                        state.leads[leadIndex].promo = data.promo;
+                        state.leads[leadIndex].TrainingStatus = data.trainingStatus; state.leads[leadIndex].trainingstatus = data.trainingStatus;
+                        state.leads[leadIndex].P_Value = data.pValue; state.leads[leadIndex].pvalue = data.pValue;
+                        state.leads[leadIndex].Referrer = data.referrer; state.leads[leadIndex].referrer = data.referrer;
+                        state.leads[leadIndex].BackgroundCheck = data.backgroundCheck; state.leads[leadIndex].backgroundcheck = data.backgroundCheck;
+                        state.leads[leadIndex].Notes = data.notes; state.leads[leadIndex].notes = data.notes;
+                    }
+                    renderPValueDashboard();
+
+                    Swal.fire('ประเมินสำเร็จ!', 'ข้อมูลถูกบันทึกและเก็บประวัติแล้ว', 'success').then(() => {
+                        const modalEl = document.getElementById('assessmentModal');
+                        if (modalEl) bootstrap.Modal.getOrCreateInstance(modalEl).hide();
+                        assessForm.reset();
+                    });
+
+                } catch (error) {
+                    Swal.fire('เกิดข้อผิดพลาดในการบันทึก', error.message, 'error'); 
+                }
+            });
+        }
+    });
+
+    // ==========================================
+    // 🕒 4. ฟังก์ชันเปิดดูประวัติ (History Modal)
+    // ==========================================
+    async function viewPValueHistory(leadId) {
+        const leadIdSpan = document.getElementById('historyLeadId');
+        if(leadIdSpan) leadIdSpan.innerText = leadId;
+        
+        const contentDiv = document.getElementById('historyContent');
+        if(contentDiv) {
+            contentDiv.innerHTML = `<div class="text-center text-muted py-4"><div class="spinner-border spinner-border-sm me-2" role="status"></div> กำลังโหลดประวัติ...</div>`;
+        }
+        
+        const modalEl = document.getElementById('historyModal');
+        if (modalEl) bootstrap.Modal.getOrCreateInstance(modalEl).show();
+
+        try {
+            const { data: sample } = await supabase.from('db_logs').select('*').limit(1);
+            const dbKeys = (sample && sample.length > 0) ? Object.keys(sample[0]) : [];
+            const detCol = ['details', 'Details'].find(k => dbKeys.includes(k)) || 'details';
+
+            const { data, error } = await supabase.from('db_logs').select('*').ilike(detCol, `%[${leadId}]%`);
+            if (error) throw error;
+
+            let finalLogs = (data || []).filter(log => log.action === 'UPDATE_PVALUE' || log.Action === 'UPDATE_PVALUE');
+            
+            finalLogs.sort((a, b) => {
+                let dateA = new Date(a.timestamp || a.Timestamp || a.created_at || 0);
+                let dateB = new Date(b.timestamp || b.Timestamp || b.created_at || 0);
+                return dateB - dateA;
+            });
+            
+            let html = '';
+            if(!finalLogs || finalLogs.length === 0) {
+                html = '<div class="text-center text-muted py-4">ยังไม่มีประวัติการประเมิน P-Value</div>';
+            } else {
+                finalLogs.forEach(log => {
+                    let logDetailString = log.details || log.Details || '';
+                    let mainChange = logDetailString;
+                    let noteText = '-';
+                    if (logDetailString.includes(' | Note: ')) {
+                        const parts = logDetailString.split(' | Note: ');
+                        mainChange = parts[0];
+                        noteText = parts[1];
+                    }
+                    
+                    const d = new Date(log.timestamp || log.Timestamp || log.created_at);
+                    let ts = '-';
+                    if (!isNaN(d.getTime())) {
+                        ts = `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth()+1).padStart(2, '0')}/${d.getFullYear()} ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+                    }
+                    const email = log.useremail || log.user_email || log.UserEmail || 'System';
+
+                    html += `
+                    <div class="border-start border-info border-3 ps-3 mb-4 position-relative">
+                        <div class="position-absolute top-0 start-0 translate-middle bg-info rounded-circle" style="width: 14px; height: 14px;"></div>
+                        <div class="d-flex justify-content-between align-items-center mb-2">
+                            <div class="fw-bold text-dark fs-6">${mainChange}</div>
+                            <div class="text-muted small"><i class="fa-regular fa-clock me-1"></i> ${ts}</div>
+                        </div>
+                        <div class="bg-light p-3 rounded small text-secondary border shadow-sm">
+                            <strong><i class="fa-regular fa-note-sticky text-warning me-1"></i> บันทึก (Note):</strong><br>
+                            ${noteText.replace(/\n/g, '<br>')}
+                        </div>
+                        <div class="mt-2 small fw-bold text-info"><i class="fa-solid fa-user-pen me-1"></i> อัปเดตโดย: ${email}</div>
+                    </div>`;
+                });
+            }
+            if(contentDiv) contentDiv.innerHTML = html;
+        } catch(err) {
+            if(contentDiv) contentDiv.innerHTML = `<div class="text-danger text-center py-4">เกิดข้อผิดพลาด: ${err.message}</div>`;
+        }
+    }
+</script>
