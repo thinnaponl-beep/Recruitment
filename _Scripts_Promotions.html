@@ -1,0 +1,437 @@
+<script>
+    // ==========================================
+    // 📢 1. จัดการข้อมูลโปรโมชั่นและโค้ดอินฟลูเอนเซอร์
+    // ==========================================
+    
+    if (typeof state.promoFilter === 'undefined') state.promoFilter = 'Active';
+    if (typeof state.referrerFilter === 'undefined') state.referrerFilter = 'Active'; 
+
+    async function loadPromotionsData() {
+        try {
+            // ดึงข้อมูลจากตาราง db_promotions
+            let promoData = [];
+            try {
+                const resPromo = await supabase.from('db_promotions').select('*');
+                if (resPromo.data) promoData = resPromo.data;
+            } catch(e) { console.warn("ไม่พบตาราง db_promotions"); }
+
+            // ดึงข้อมูลจากตาราง db_referrers
+            let refData = [];
+            try {
+                const resRef = await supabase.from('db_referrers').select('*');
+                if (resRef.data) refData = resRef.data;
+            } catch(e) { console.warn("ไม่พบตาราง db_referrers"); }
+
+            const today = new Date(); 
+            today.setHours(0,0,0,0);
+
+            // คำนวณสถานะ Promotions
+            state.promotions = (promoData || []).map(p => {
+                let calcStatus = 'Invalid';
+                let parsedStart = parseFlexibleDate(p.Start_Date || p.start_date || p.startdate);
+                let parsedEnd = parseFlexibleDate(p.End_Date || p.end_date || p.enddate);
+
+                if (parsedStart && parsedEnd) {
+                    parsedStart.setHours(0,0,0,0);
+                    parsedEnd.setHours(23, 59, 59, 999);
+                    const dbStatus = p.Status || p.status;
+
+                    if (dbStatus === 'Inactive') calcStatus = 'Inactive';
+                    else if (today > parsedEnd) calcStatus = 'Expired';
+                    else if (today < parsedStart) calcStatus = 'Upcoming';
+                    else calcStatus = 'Active';
+                }
+
+                return {
+                    Promo_ID: p.Promo_ID || p.promo_id || p.promoid,
+                    Promo_Name: p.Promo_Name || p.promo_name || p.promoname,
+                    Start_Date: p.Start_Date || p.start_date || p.startdate,
+                    End_Date: p.End_Date || p.end_date || p.enddate,
+                    Description: p.Description || p.description,
+                    Status: p.Status || p.status,
+                    Calculated_Status: calcStatus,
+                    Parsed_Start: parsedStart,
+                    Parsed_End: parsedEnd
+                };
+            });
+
+            // คำนวณสถานะ Referrers
+            state.referrers = (refData || []).map(r => {
+                let calcStatus = 'Invalid';
+                let parsedStart = parseFlexibleDate(r.Start_Date || r.start_date || r.startdate);
+                let parsedEnd = parseFlexibleDate(r.End_Date || r.end_date || r.enddate);
+
+                if (parsedStart && parsedEnd) {
+                    parsedStart.setHours(0,0,0,0);
+                    parsedEnd.setHours(23, 59, 59, 999);
+                    const dbStatus = r.Status || r.status;
+
+                    if (dbStatus === 'Inactive') calcStatus = 'Inactive';
+                    else if (today > parsedEnd) calcStatus = 'Expired';
+                    else if (today < parsedStart) calcStatus = 'Upcoming';
+                    else calcStatus = 'Active';
+                }
+
+                return {
+                    Ref_ID: r.Ref_ID || r.ref_id || r.refid,
+                    Ref_Name: r.Ref_Name || r.ref_name || r.refname,
+                    Start_Date: r.Start_Date || r.start_date || r.startdate,
+                    End_Date: r.End_Date || r.end_date || r.enddate,
+                    Description: r.Description || r.description,
+                    Status: r.Status || r.status,
+                    Calculated_Status: calcStatus,
+                    Parsed_Start: parsedStart,
+                    Parsed_End: parsedEnd
+                };
+            });
+
+            renderPromotionsDashboard(); 
+            renderReferrersDashboard(); 
+
+        } catch (err) {
+            console.error("Load Data Error:", err);
+            Swal.fire('ข้อผิดพลาด', 'ไม่สามารถโหลดข้อมูลได้: ' + err.message, 'error');
+        }
+    }
+
+    // ==========================================
+    // 📢 TAB 1: โปรโมชั่น (Promotions)
+    // ==========================================
+    function renderPromotionsDashboard() {
+        const pCounts = { 'Total': state.promotions.length, 'Active': 0, 'Expired': 0, 'Upcoming': 0, 'Inactive': 0, 'Invalid': 0 };
+        state.promotions.forEach(p => { pCounts[p.Calculated_Status] = (pCounts[p.Calculated_Status] || 0) + 1; });
+
+        const pConfigs = [
+            { id: 'All', label: 'ทั้งหมด', count: pCounts['Total'], color: '#64748b' },
+            { id: 'Active', label: 'กำลังใช้งาน', count: pCounts['Active'], color: '#10b981' },
+            { id: 'Upcoming', label: 'รอเริ่มต้น', count: pCounts['Upcoming'], color: '#f59e0b' },
+            { id: 'Expired', label: 'หมดเวลา', count: pCounts['Expired'], color: '#ef4444' },
+            { id: 'Inactive', label: 'ปิดใช้งาน', count: pCounts['Inactive'], color: '#6b7280' }
+        ];
+
+        let cardsHtml = '<div class="row row-cols-2 row-cols-md-3 row-cols-lg-5 g-2 mb-4">';
+        pConfigs.forEach(c => {
+            const isActive = state.promoFilter === c.id;
+            const activeStyle = isActive ? `box-shadow: 0 0 0 3px rgba(0,0,0,0.05); border-color: ${c.color} !important; background-color: ${c.color}15; transform: translateY(-2px);` : '';
+            cardsHtml += `
+            <div class="col">
+                <div class="card h-100 shadow-sm border" style="cursor: pointer; transition: all 0.2s; border-left: 4px solid ${c.color} !important; ${activeStyle}" onclick="setPromoFilter('${c.id}')">
+                    <div class="card-body p-2 text-center">
+                        <div class="small fw-bold text-muted mb-1" style="font-size: 0.75rem; ${isActive ? `color: ${c.color} !important;` : ''}">${c.label}</div>
+                        <h4 class="mb-0 fw-bold" style="color: ${c.color};">${c.count}</h4>
+                    </div>
+                </div>
+            </div>`;
+        });
+        cardsHtml += '</div>';
+
+        document.getElementById('promotionsDashboardCards').innerHTML = cardsHtml;
+        applyPromoFilters();
+    }
+
+    function setPromoFilter(status) { state.promoFilter = status; renderPromotionsDashboard(); }
+
+    function applyPromoFilters() {
+        let filteredData = state.promoFilter === 'All' ? state.promotions : state.promotions.filter(p => p.Calculated_Status === state.promoFilter);
+        renderPromotionsTable(filteredData);
+        drawPromoGanttChart(filteredData);
+    }
+
+    function renderPromotionsTable(data) {
+        const tbody = document.getElementById('promosTableBody');
+        if (!tbody) return;
+        if (!data || data.length === 0) { 
+            tbody.innerHTML = `<tr><td colspan="6" class="text-center py-5 text-muted">ไม่พบข้อมูลโปรโมชั่นในสถานะนี้</td></tr>`; return; 
+        }
+
+        tbody.innerHTML = data.map((row, index) => {
+            let statusBadge = '';
+            if (row.Calculated_Status === 'Inactive') statusBadge = '<span class="badge bg-secondary">ปิดใช้งาน (Inactive)</span>';
+            else if (row.Calculated_Status === 'Expired') statusBadge = '<span class="badge bg-danger">หมดเวลา (Expired)</span>';
+            else if (row.Calculated_Status === 'Upcoming') statusBadge = '<span class="badge bg-warning text-dark">รอเริ่มต้น (Upcoming)</span>';
+            else if (row.Calculated_Status === 'Active') statusBadge = '<span class="badge bg-success">กำลังใช้งาน (Active)</span>';
+
+            return `
+            <tr>
+                <td class="fw-bold text-center text-muted">${index + 1}</td>
+                <td class="text-danger fw-bold">${row.Promo_ID || '-'}</td>
+                <td class="fw-bold">${row.Promo_Name || '-'}<br><small class="text-muted">${row.Description || '-'}</small></td>
+                <td><i class="fa-regular fa-calendar text-muted"></i> ${formatDateForDisplay(row.Start_Date)} <i class="fa-solid fa-arrow-right mx-1 text-muted"></i> ${formatDateForDisplay(row.End_Date)}</td>
+                <td>${statusBadge}</td>
+                <td class="text-center">
+                    <button class="btn btn-sm btn-outline-secondary rounded-circle me-1" onclick="editPromo('${row.Promo_ID}')"><i class="fa-solid fa-pen"></i></button>
+                    <button class="btn btn-sm btn-outline-danger rounded-circle" onclick="deletePromo('${row.Promo_ID}')"><i class="fa-solid fa-trash"></i></button>
+                </td>
+            </tr>`;
+        }).join('');
+    }
+
+    function drawPromoGanttChart(data = state.promotions) {
+        const container = document.getElementById('promoTimeline');
+        if (!container || typeof google === 'undefined' || !google.visualization) return;
+        
+        let activeData = state.promoFilter === 'All' ? data : data.filter(p => p.Calculated_Status === state.promoFilter);
+        if (!activeData || activeData.length === 0) { container.innerHTML = '<div class="text-center mt-5 text-muted">ไม่มีข้อมูลสำหรับสร้างกราฟ</div>'; return; }
+
+        const chart = new google.visualization.Timeline(container);
+        const dataTable = new google.visualization.DataTable();
+        dataTable.addColumn({ type: 'string', id: 'Status' }); dataTable.addColumn({ type: 'string', id: 'Name' }); dataTable.addColumn({ type: 'date', id: 'Start' }); dataTable.addColumn({ type: 'date', id: 'End' });
+
+        const rows = activeData.map(p => {
+            if (p.Parsed_Start && p.Parsed_End) {
+                let lbl = 'ไม่ระบุ';
+                if (p.Calculated_Status === 'Active') lbl = 'พร้อมใช้งาน (Active)'; else if (p.Calculated_Status === 'Inactive') lbl = 'ปิดใช้งาน (Inactive)'; else if (p.Calculated_Status === 'Expired') lbl = 'หมดเวลา (Expired)'; else if (p.Calculated_Status === 'Upcoming') lbl = 'รอเริ่มต้น (Upcoming)';
+                return [lbl, p.Promo_Name || 'Promo', p.Parsed_Start, p.Parsed_End];
+            }
+            return null;
+        }).filter(r => r !== null);
+
+        if (rows.length > 0) {
+            dataTable.addRows(rows);
+            const colors = [...new Set(rows.map(r => r[0]))].map(l => l.includes('Active') ? '#10b981' : l.includes('Expired') ? '#ef4444' : l.includes('Upcoming') ? '#f59e0b' : '#6b7280');
+            chart.draw(dataTable, { timeline: { colorByRowLabel: true }, colors: colors, backgroundColor: '#ffffff', height: Math.max(250, rows.length * 45 + 50) });
+        }
+    }
+
+    // ==========================================
+    // 👥 TAB 2: ผู้แนะนำ (Referrers)
+    // ==========================================
+    function renderReferrersDashboard() {
+        const rCounts = { 'Total': state.referrers.length, 'Active': 0, 'Expired': 0, 'Upcoming': 0, 'Inactive': 0, 'Invalid': 0 };
+        state.referrers.forEach(r => { rCounts[r.Calculated_Status] = (rCounts[r.Calculated_Status] || 0) + 1; });
+
+        const rConfigs = [
+            { id: 'All', label: 'ทั้งหมด', count: rCounts['Total'], color: '#64748b' },
+            { id: 'Active', label: 'กำลังใช้งาน', count: rCounts['Active'], color: '#3b82f6' },
+            { id: 'Upcoming', label: 'รอเริ่มต้น', count: rCounts['Upcoming'], color: '#f59e0b' },
+            { id: 'Expired', label: 'หมดเวลา', count: rCounts['Expired'], color: '#ef4444' },
+            { id: 'Inactive', label: 'ปิดใช้งาน', count: rCounts['Inactive'], color: '#6b7280' }
+        ];
+
+        let cardsHtml = '<div class="row row-cols-2 row-cols-md-3 row-cols-lg-5 g-2 mb-4">';
+        rConfigs.forEach(c => {
+            const isActive = state.referrerFilter === c.id;
+            const activeStyle = isActive ? `box-shadow: 0 0 0 3px rgba(0,0,0,0.05); border-color: ${c.color} !important; background-color: ${c.color}15; transform: translateY(-2px);` : '';
+            cardsHtml += `
+            <div class="col">
+                <div class="card h-100 shadow-sm border" style="cursor: pointer; transition: all 0.2s; border-left: 4px solid ${c.color} !important; ${activeStyle}" onclick="setReferrerFilter('${c.id}')">
+                    <div class="card-body p-2 text-center">
+                        <div class="small fw-bold text-muted mb-1" style="font-size: 0.75rem; ${isActive ? `color: ${c.color} !important;` : ''}">${c.label}</div>
+                        <h4 class="mb-0 fw-bold" style="color: ${c.color};">${c.count}</h4>
+                    </div>
+                </div>
+            </div>`;
+        });
+        cardsHtml += '</div>';
+
+        document.getElementById('referrersDashboardCards').innerHTML = cardsHtml;
+        applyReferrerFilters();
+    }
+
+    function setReferrerFilter(status) { state.referrerFilter = status; renderReferrersDashboard(); }
+
+    function applyReferrerFilters() {
+        let filteredData = state.referrerFilter === 'All' ? state.referrers : state.referrers.filter(r => r.Calculated_Status === state.referrerFilter);
+        renderReferrersTable(filteredData);
+        drawReferrerGanttChart(filteredData);
+    }
+
+    function renderReferrersTable(data) {
+        const tbody = document.getElementById('referrersTableBody');
+        if (!tbody) return;
+        if (!data || data.length === 0) { 
+            tbody.innerHTML = `<tr><td colspan="6" class="text-center py-5 text-muted">ไม่พบข้อมูลผู้แนะนำในสถานะนี้</td></tr>`; return; 
+        }
+
+        tbody.innerHTML = data.map((row, index) => {
+            let statusBadge = '';
+            if (row.Calculated_Status === 'Inactive') statusBadge = '<span class="badge bg-secondary">ปิดใช้งาน (Inactive)</span>';
+            else if (row.Calculated_Status === 'Expired') statusBadge = '<span class="badge bg-danger">หมดเวลา (Expired)</span>';
+            else if (row.Calculated_Status === 'Upcoming') statusBadge = '<span class="badge bg-warning text-dark">รอเริ่มต้น (Upcoming)</span>';
+            else if (row.Calculated_Status === 'Active') statusBadge = '<span class="badge bg-primary">กำลังใช้งาน (Active)</span>';
+
+            return `
+            <tr>
+                <td class="fw-bold text-center text-muted">${index + 1}</td>
+                <td class="text-primary fw-bold">${row.Ref_ID || '-'}</td>
+                <td class="fw-bold">${row.Ref_Name || '-'}<br><small class="text-muted">${row.Description || '-'}</small></td>
+                <td><i class="fa-regular fa-calendar text-muted"></i> ${formatDateForDisplay(row.Start_Date)} <i class="fa-solid fa-arrow-right mx-1 text-muted"></i> ${formatDateForDisplay(row.End_Date)}</td>
+                <td>${statusBadge}</td>
+                <td class="text-center">
+                    <button class="btn btn-sm btn-outline-secondary rounded-circle me-1" onclick="editReferrer('${row.Ref_ID}')"><i class="fa-solid fa-pen"></i></button>
+                    <button class="btn btn-sm btn-outline-danger rounded-circle" onclick="deleteReferrer('${row.Ref_ID}')"><i class="fa-solid fa-trash"></i></button>
+                </td>
+            </tr>`;
+        }).join('');
+    }
+
+    function drawReferrerGanttChart(data = state.referrers) {
+        const container = document.getElementById('referrerTimeline');
+        if (!container || typeof google === 'undefined' || !google.visualization) return;
+        
+        let activeData = state.referrerFilter === 'All' ? data : data.filter(r => r.Calculated_Status === state.referrerFilter);
+        if (!activeData || activeData.length === 0) { container.innerHTML = '<div class="text-center mt-5 text-muted">ไม่มีข้อมูลสำหรับสร้างกราฟ</div>'; return; }
+
+        const chart = new google.visualization.Timeline(container);
+        const dataTable = new google.visualization.DataTable();
+        dataTable.addColumn({ type: 'string', id: 'Status' }); dataTable.addColumn({ type: 'string', id: 'Name' }); dataTable.addColumn({ type: 'date', id: 'Start' }); dataTable.addColumn({ type: 'date', id: 'End' });
+
+        const rows = activeData.map(r => {
+            if (r.Parsed_Start && r.Parsed_End) {
+                let lbl = 'ไม่ระบุ';
+                if (r.Calculated_Status === 'Active') lbl = 'พร้อมใช้งาน (Active)'; else if (r.Calculated_Status === 'Inactive') lbl = 'ปิดใช้งาน (Inactive)'; else if (r.Calculated_Status === 'Expired') lbl = 'หมดเวลา (Expired)'; else if (r.Calculated_Status === 'Upcoming') lbl = 'รอเริ่มต้น (Upcoming)';
+                return [lbl, r.Ref_Name || 'Referrer', r.Parsed_Start, r.Parsed_End];
+            }
+            return null;
+        }).filter(r => r !== null);
+
+        if (rows.length > 0) {
+            dataTable.addRows(rows);
+            const colors = [...new Set(rows.map(r => r[0]))].map(l => l.includes('Active') ? '#3b82f6' : l.includes('Expired') ? '#ef4444' : l.includes('Upcoming') ? '#f59e0b' : '#6b7280');
+            chart.draw(dataTable, { timeline: { colorByRowLabel: true }, colors: colors, backgroundColor: '#ffffff', height: Math.max(250, rows.length * 45 + 50) });
+        }
+    }
+
+    // ==========================================
+    // 🖍️ 3. จัดการฟอร์ม (Modal & Submit)
+    // ==========================================
+    
+    // -- PROMOTIONS MODAL --
+    function openPromoModal() {
+        const f = document.getElementById('promoForm'); if (f) f.reset(); 
+        document.getElementById('promoId').value = ''; 
+        document.getElementById('promoModalTitle').innerHTML = '<i class="fa-solid fa-bullhorn"></i> เพิ่มโปรโมชั่นใหม่';
+        if (typeof flatpickr !== 'undefined') {
+            flatpickr("#promoStartDate", { locale: "th", dateFormat: "d/m/Y", defaultDate: new Date() }); 
+            flatpickr("#promoEndDate", { locale: "th", dateFormat: "d/m/Y", defaultDate: new Date() });
+        }
+        bootstrap.Modal.getOrCreateInstance(document.getElementById('promoModal')).show();
+    }
+
+    function editPromo(promoId) {
+        const promo = state.promotions.find(p => p.Promo_ID === promoId); if (!promo) return;
+        document.getElementById('promoId').value = promoId; 
+        document.getElementById('promoModalTitle').innerHTML = '<i class="fa-solid fa-pen"></i> แก้ไขโปรโมชั่น: ' + promoId;
+        const form = document.getElementById('promoForm');
+        form.elements['promoName'].value = promo.Promo_Name || ''; form.elements['description'].value = promo.Description || ''; form.elements['status'].value = promo.Status || 'Active';
+        if (typeof flatpickr !== 'undefined') {
+            flatpickr("#promoStartDate", { locale: "th", dateFormat: "d/m/Y", defaultDate: formatDateForDisplay(promo.Start_Date) || new Date() }); 
+            flatpickr("#promoEndDate", { locale: "th", dateFormat: "d/m/Y", defaultDate: formatDateForDisplay(promo.End_Date) || new Date() });
+        }
+        bootstrap.Modal.getOrCreateInstance(document.getElementById('promoModal')).show();
+    }
+
+    async function deletePromo(promoId) {
+        Swal.fire({ title: 'ยืนยันการลบ?', text: `ลบโปรโมชั่น ${promoId}?`, icon: 'warning', showCancelButton: true, confirmButtonColor: '#d33', confirmButtonText: 'ลบทิ้ง' }).then(async (result) => {
+            if (result.isConfirmed) {
+                Swal.fire({ title: 'กำลังลบ...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
+                try {
+                    let res = await supabase.from('db_promotions').delete().eq('promo_id', promoId);
+                    if (res.error) res = await supabase.from('db_promotions').delete().eq('Promo_ID', promoId);
+                    await supabase.from('db_logs').insert([{ user_email: state.currentUser?.email, action: 'DELETE_PROMO', module: 'Promotions', details: `Deleted Promo ID: ${promoId}` }]);
+                    Swal.fire('ลบสำเร็จ!', '', 'success'); loadPromotionsData(); loadInitialDataFromSupabase();
+                } catch (err) { Swal.fire('Error', err.message, 'error'); }
+            }
+        });
+    }
+
+    // -- REFERRERS MODAL --
+    function openReferrerModal() {
+        const f = document.getElementById('referrerForm'); if (f) f.reset(); 
+        document.getElementById('refId').value = ''; 
+        document.getElementById('referrerModalTitle').innerHTML = '<i class="fa-solid fa-user-plus"></i> เพิ่มผู้แนะนำใหม่ / โค้ดอินฟลู';
+        if (typeof flatpickr !== 'undefined') {
+            flatpickr("#refStartDate", { locale: "th", dateFormat: "d/m/Y", defaultDate: new Date() }); 
+            flatpickr("#refEndDate", { locale: "th", dateFormat: "d/m/Y", defaultDate: new Date() });
+        }
+        bootstrap.Modal.getOrCreateInstance(document.getElementById('referrerModal')).show();
+    }
+
+    function editReferrer(refId) {
+        const ref = state.referrers.find(r => r.Ref_ID === refId); if (!ref) return;
+        document.getElementById('refId').value = refId; 
+        document.getElementById('referrerModalTitle').innerHTML = '<i class="fa-solid fa-pen"></i> แก้ไขผู้แนะนำ: ' + refId;
+        const form = document.getElementById('referrerForm');
+        form.elements['refName'].value = ref.Ref_Name || ''; form.elements['description'].value = ref.Description || ''; form.elements['status'].value = ref.Status || 'Active';
+        if (typeof flatpickr !== 'undefined') {
+            flatpickr("#refStartDate", { locale: "th", dateFormat: "d/m/Y", defaultDate: formatDateForDisplay(ref.Start_Date) || new Date() }); 
+            flatpickr("#refEndDate", { locale: "th", dateFormat: "d/m/Y", defaultDate: formatDateForDisplay(ref.End_Date) || new Date() });
+        }
+        bootstrap.Modal.getOrCreateInstance(document.getElementById('referrerModal')).show();
+    }
+
+    async function deleteReferrer(refId) {
+        Swal.fire({ title: 'ยืนยันการลบ?', text: `ลบผู้แนะนำ ${refId}?`, icon: 'warning', showCancelButton: true, confirmButtonColor: '#d33', confirmButtonText: 'ลบทิ้ง' }).then(async (result) => {
+            if (result.isConfirmed) {
+                Swal.fire({ title: 'กำลังลบ...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
+                try {
+                    let res = await supabase.from('db_referrers').delete().eq('ref_id', refId);
+                    if (res.error) res = await supabase.from('db_referrers').delete().eq('Ref_ID', refId);
+                    await supabase.from('db_logs').insert([{ user_email: state.currentUser?.email, action: 'DELETE_REFERRER', module: 'Referrers', details: `Deleted Referrer ID: ${refId}` }]);
+                    Swal.fire('ลบสำเร็จ!', '', 'success'); loadPromotionsData(); loadInitialDataFromSupabase();
+                } catch (err) { Swal.fire('Error', err.message, 'error'); }
+            }
+        });
+    }
+
+    // ==========================================
+    // 🧲 FORM SUBMISSIONS
+    // ==========================================
+    document.addEventListener('DOMContentLoaded', () => {
+        // Promo Submit
+        const promoForm = document.getElementById('promoForm');
+        if (promoForm) {
+            promoForm.addEventListener('submit', async function(e) {
+                e.preventDefault();
+                const fd = new FormData(this); const promoId = fd.get('promoId'); 
+                const payload = { promo_name: fd.get('promoName'), start_date: formatDateForDB(fd.get('startDate')), end_date: formatDateForDB(fd.get('endDate')), description: fd.get('description'), status: fd.get('status') };
+                const payloadFallback = { Promo_Name: fd.get('promoName'), Start_Date: formatDateForDB(fd.get('startDate')), End_Date: formatDateForDB(fd.get('endDate')), Description: fd.get('description'), Status: fd.get('status') };
+                
+                Swal.fire({ title: 'กำลังบันทึก...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
+                try {
+                    if (promoId) {
+                        let res = await supabase.from('db_promotions').update(payload).eq('promo_id', promoId);
+                        if (res.error) res = await supabase.from('db_promotions').update(payloadFallback).eq('Promo_ID', promoId);
+                        await supabase.from('db_logs').insert([{ user_email: state.currentUser?.email, action: 'UPDATE_PROMO', module: 'Promotions', details: `Updated Promo ID: ${promoId}` }]);
+                    } else {
+                        const newId = "PRM-" + new Date().getTime().toString().substring(7);
+                        payload.promo_id = newId; payloadFallback.Promo_ID = newId;
+                        let res = await supabase.from('db_promotions').insert([payload]);
+                        if (res.error) res = await supabase.from('db_promotions').insert([payloadFallback]);
+                        await supabase.from('db_logs').insert([{ user_email: state.currentUser?.email, action: 'CREATE_PROMO', module: 'Promotions', details: `Created Promo ID: ${newId}` }]);
+                    }
+                    bootstrap.Modal.getOrCreateInstance(document.getElementById('promoModal')).hide(); 
+                    promoForm.reset(); Swal.fire('สำเร็จ!', '', 'success'); loadPromotionsData(); loadInitialDataFromSupabase(); 
+                } catch (err) { Swal.fire('Error', err.message, 'error'); }
+            });
+        }
+
+        // Referrer Submit
+        const referrerForm = document.getElementById('referrerForm');
+        if (referrerForm) {
+            referrerForm.addEventListener('submit', async function(e) {
+                e.preventDefault();
+                const fd = new FormData(this); const refId = fd.get('refId'); 
+                const payload = { ref_name: fd.get('refName'), start_date: formatDateForDB(fd.get('startDate')), end_date: formatDateForDB(fd.get('endDate')), description: fd.get('description'), status: fd.get('status') };
+                const payloadFallback = { Ref_Name: fd.get('refName'), Start_Date: formatDateForDB(fd.get('startDate')), End_Date: formatDateForDB(fd.get('endDate')), Description: fd.get('description'), Status: fd.get('status') };
+                
+                Swal.fire({ title: 'กำลังบันทึก...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
+                try {
+                    if (refId) {
+                        let res = await supabase.from('db_referrers').update(payload).eq('ref_id', refId);
+                        if (res.error) res = await supabase.from('db_referrers').update(payloadFallback).eq('Ref_ID', refId);
+                        await supabase.from('db_logs').insert([{ user_email: state.currentUser?.email, action: 'UPDATE_REFERRER', module: 'Referrers', details: `Updated Referrer ID: ${refId}` }]);
+                    } else {
+                        const newId = "REF-" + new Date().getTime().toString().substring(7);
+                        payload.ref_id = newId; payloadFallback.Ref_ID = newId;
+                        let res = await supabase.from('db_referrers').insert([payload]);
+                        if (res.error) res = await supabase.from('db_referrers').insert([payloadFallback]);
+                        await supabase.from('db_logs').insert([{ user_email: state.currentUser?.email, action: 'CREATE_REFERRER', module: 'Referrers', details: `Created Referrer ID: ${newId}` }]);
+                    }
+                    bootstrap.Modal.getOrCreateInstance(document.getElementById('referrerModal')).hide(); 
+                    referrerForm.reset(); Swal.fire('สำเร็จ!', '', 'success'); loadPromotionsData(); loadInitialDataFromSupabase(); 
+                } catch (err) { Swal.fire('Error', err.message, 'error'); }
+            });
+        }
+    });
+</script>
