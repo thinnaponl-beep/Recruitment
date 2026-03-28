@@ -1,0 +1,185 @@
+<div class="container-fluid p-4">
+    <!-- Header Section -->
+    <div class="d-flex align-items-center mb-4">
+        <div class="bg-white p-2 rounded-circle shadow-sm me-3" style="width: 45px; height: 45px; display: flex; align-items: center; justify-content: center;">
+            <i class="fa-solid fa-gears text-primary fs-5"></i>
+        </div>
+        <div>
+            <h4 class="fw-bold mb-0 text-dark">ตั้งค่าระบบ (Settings)</h4>
+            <small class="text-muted">จัดการสิทธิ์ผู้ใช้งานและข้อมูลตัวเลือกในฟอร์มทั้งหมด</small>
+        </div>
+    </div>
+
+    <!-- Navigation Tabs -->
+    <ul class="nav nav-pills mb-4 bg-white p-2 rounded shadow-sm border" id="settingsTab" role="tablist">
+        <li class="nav-item" role="presentation">
+            <button class="nav-link active fw-bold" id="admin-tab" data-bs-toggle="pill" data-bs-target="#tab-admin" type="button">
+                <i class="fa-solid fa-user-shield me-2"></i> จัดการสิทธิ์แอดมิน
+            </button>
+        </li>
+        <li class="nav-item" role="presentation">
+            <button class="nav-link fw-bold" id="dropdown-tab" data-bs-toggle="pill" data-bs-target="#tab-dropdown" type="button" onclick="loadSettingsDropdowns()">
+                <i class="fa-solid fa-list-ul me-2"></i> จัดการตัวเลือก (Dropdowns)
+            </button>
+        </li>
+    </ul>
+
+    <div class="tab-content" id="settingsTabContent">
+        <!-- 1. ส่วนจัดการสิทธิ์แอดมิน (Admin Management) -->
+        <div class="tab-pane fade show active" id="tab-admin" role="tabpanel">
+            <div class="card border-0 shadow-sm">
+                <div class="card-header bg-white py-3 d-flex justify-content-between align-items-center border-bottom">
+                    <h6 class="mb-0 fw-bold text-primary"><i class="fa-solid fa-users me-2"></i> รายชื่อผู้มีสิทธิ์เข้าใช้งาน</h6>
+                    <button class="btn btn-primary btn-sm px-3 fw-bold shadow-sm" onclick="openAdminModal()">
+                        <i class="fa-solid fa-plus me-1"></i> เพิ่มแอดมิน
+                    </button>
+                </div>
+                <div class="card-body p-0">
+                    <div class="table-responsive">
+                        <table class="table table-hover align-middle mb-0">
+                            <thead class="table-light">
+                                <tr>
+                                    <th class="ps-4">ชื่อแอดมิน (อีเมล)</th>
+                                    <th>บทบาท (Role)</th>
+                                    <th>ระบบ Auto-Assign</th>
+                                    <th class="text-center">จัดการ</th>
+                                </tr>
+                            </thead>
+                            <tbody id="adminTableBody">
+                                <!-- JavaScript จะสร้างแถวข้อมูลตรงนี้ -->
+                                <tr>
+                                    <td colspan="4" class="text-center py-5 text-muted">
+                                        <div class="spinner-border spinner-border-sm me-2" role="status"></div> กำลังโหลดข้อมูล...
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 2. ส่วนจัดการ Dropdown (Dropdown Manager) -->
+        <div class="tab-pane fade" id="tab-dropdown" role="tabpanel">
+            <div class="row g-4">
+                <!-- หมวดหมู่ Dropdown -->
+                <div class="col-md-4">
+                    <div class="card border-0 shadow-sm overflow-hidden">
+                        <div class="card-header bg-light py-3 border-bottom">
+                            <h6 class="mb-0 fw-bold small text-uppercase text-muted">เลือกหมวดหมู่ที่ต้องการแก้ไข</h6>
+                        </div>
+                        <div class="list-group list-group-flush" id="dropdownCategoryList" style="max-height: 500px; overflow-y: auto;">
+                            <button class="list-group-item list-group-item-action active py-3 px-4" onclick="selectDropdownCat('Channel')">
+                                <i class="fa-solid fa-share-nodes me-3"></i> ช่องทางสื่อสาร
+                            </button>
+                            <button class="list-group-item list-group-item-action py-3 px-4" onclick="selectDropdownCat('ContactResult')">
+                                <i class="fa-solid fa-comment-dots me-3"></i> ผลการติดต่อ
+                            </button>
+                            <!-- 🌟 หมวดหมู่ใหม่ที่เพิ่มเข้ามา 🌟 -->
+                            <button class="list-group-item list-group-item-action py-3 px-4" onclick="selectDropdownCat('JobType')">
+                                <i class="fa-solid fa-briefcase me-3"></i> ประเภทผู้สมัคร
+                            </button>
+                            <button class="list-group-item list-group-item-action py-3 px-4" onclick="selectDropdownCat('StartWithin')">
+                                <i class="fa-solid fa-business-time me-3"></i> เริ่มงานภายใน
+                            </button>
+                            <button class="list-group-item list-group-item-action py-3 px-4" onclick="selectDropdownCat('BackgroundCheck')">
+                                <i class="fa-solid fa-file-shield me-3"></i> การตรวจประวัติ
+                            </button>
+                            <button class="list-group-item list-group-item-action py-3 px-4" onclick="selectDropdownCat('TrainingStatus')">
+                                <i class="fa-solid fa-chalkboard-user me-3"></i> สถานะการอบรม
+                            </button>
+                            <button class="list-group-item list-group-item-action py-3 px-4" onclick="selectDropdownCat('QuickTags')">
+                                <i class="fa-solid fa-tags me-3"></i> โน้ตเพิ่มเติม (Tags #)
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- รายการตัวเลือก (ลากเพื่อจัดเรียง) -->
+                <div class="col-md-8">
+                    <div class="card border-0 shadow-sm">
+                        <div class="card-header bg-white py-3 d-flex justify-content-between align-items-center border-bottom">
+                            <h6 class="mb-0 fw-bold" id="currentDropdownTitle">ตัวเลือก: ช่องทางสื่อสาร</h6>
+                            <button class="btn btn-outline-success btn-sm fw-bold px-3" onclick="addDropdownItem()">
+                                <i class="fa-solid fa-plus me-1"></i> เพิ่มตัวเลือก
+                            </button>
+                        </div>
+                        <div class="card-body p-0">
+                            <div class="p-3 bg-light border-bottom">
+                                <small class="text-muted"><i class="fa-solid fa-circle-info me-1"></i> คลิกที่สัญลักษณ์ <i class="fa-solid fa-grip-lines mx-1"></i> แล้วลากเพื่อจัดเรียงลำดับการแสดงผลในหน้าฟอร์ม</small>
+                            </div>
+                            <ul class="list-group list-group-flush" id="dropdownSortableList">
+                                <!-- Sortable items will be here -->
+                            </ul>
+                        </div>
+                        <div class="card-footer bg-white py-3 border-top d-flex justify-content-end">
+                            <button class="btn btn-primary px-4 fw-bold shadow-sm" onclick="saveDropdownOrder()">
+                                <i class="fa-solid fa-floppy-disk me-2"></i> บันทึกลำดับใหม่
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ========================================================
+     MODAL: เพิ่ม/แก้ไข แอดมิน
+     ======================================================== -->
+<div class="modal fade" id="adminModal" data-bs-backdrop="static" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content border-0 shadow-lg">
+            <div class="modal-header border-bottom-0 pb-0">
+                <h5 class="modal-title fw-bold text-primary" id="adminModalTitle"><i class="fa-solid fa-user-plus me-2"></i> เพิ่ม/แก้ไข ข้อมูลแอดมิน</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body p-4">
+                <form id="adminForm">
+                    <!-- สถานะว่ากำลัง Add หรือ Edit -->
+                    <input type="hidden" id="adminActionType" value="add">
+                    
+                    <div class="mb-3">
+                        <label class="form-label small fw-bold text-muted">ชื่อเล่น (Nickname) *</label>
+                        <input type="text" class="form-control fw-bold" name="adminName" id="adminNameInput" required placeholder="เช่น สมชาย, พี่นัท">
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label small fw-bold text-muted">อีเมล Google Account *</label>
+                        <input type="email" class="form-control" name="adminEmail" id="adminEmailInput" required placeholder="example@gmail.com">
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label class="form-label small fw-bold text-muted">บทบาท (Role)</label>
+                        <select class="form-select" name="adminRole" id="adminRoleSelect">
+                            <option value="Admin">Admin (จัดการได้ทุกส่วนรวมถึงหน้าตั้งค่า)</option>
+                            <option value="Recruiter" selected>Recruiter (บันทึกข้อมูลและประเมินผลได้)</option>
+                            <option value="Viewer">Viewer (ดูข้อมูลได้อย่างเดียว)</option>
+                        </select>
+                    </div>
+
+                    <div class="p-3 rounded bg-light border mb-3">
+                        <div class="form-check form-switch">
+                            <input class="form-check-input" type="checkbox" name="autoAssign" id="autoAssignSwitch" checked>
+                            <label class="form-check-label fw-bold small ms-2" for="autoAssignSwitch">เปิดใช้งานระบบกระจายเคส (Auto-Assign)</label>
+                        </div>
+                        <small class="text-muted d-block mt-1 ms-4 ps-2">เมื่อมีการบันทึกเคสใหม่แบบ 'กระจายอัตโนมัติ' รายชื่อนี้จะถูกนำมาคำนวณแบ่งงาน</small>
+                    </div>
+
+                    <!-- 🌟 สวิตช์นักพัฒนา 🌟 -->
+                    <div class="p-3 rounded bg-dark border border-dark mb-2">
+                        <div class="form-check form-switch">
+                            <input class="form-check-input" type="checkbox" name="isDeveloper" id="isDeveloperSwitch">
+                            <label class="form-check-label fw-bold small ms-2 text-white" for="isDeveloperSwitch">ตัวเลือกนักพัฒนา (Developer Mode)</label>
+                        </div>
+                        <small class="text-secondary d-block mt-1 ms-4 ps-2">หากเปิด ชื่อนี้จะไม่แสดงในตัวกรอง และจะไม่ถูกดึงไปรับงาน Assign ใดๆ ทั้งสิ้น</small>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer border-top-0 pt-0">
+                <button type="button" class="btn btn-outline-secondary px-4 fw-bold me-auto" data-bs-dismiss="modal">ยกเลิก</button>
+                <button type="button" class="btn btn-primary px-5 fw-bold" onclick="saveAdmin()">บันทึกข้อมูล</button>
+            </div>
+        </div>
+    </div>
+</div>
