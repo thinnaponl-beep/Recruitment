@@ -1,0 +1,446 @@
+<script>
+    // ==========================================
+    // 📋 1. ฟังก์ชันกรองข้อมูล (Filter & Status Cards)
+    // ==========================================
+    function clearDateFilter() {
+        // อ้างอิง dateFilterControl จากหน้า Core หรือดึงจาก DOM โดยตรง
+        if (typeof dateFilterControl !== 'undefined' && dateFilterControl) {
+            dateFilterControl.clear(); // การ clear() จะไปกระตุ้น onChange ให้เรียก applyFilters() เอง
+        } else {
+            const dateInput = document.getElementById('dateFilter');
+            if (dateInput && dateInput._flatpickr) {
+                dateInput._flatpickr.clear();
+            }
+        }
+    }
+
+    function filterByContactResult(status) {
+        state.currentFilter = status;
+        applyFilters(); 
+    }
+
+    function applyFilters() {
+        let tempLeads = state.leads;
+
+        if (state.dateRange && state.dateRange.start && state.dateRange.end) {
+            tempLeads = tempLeads.filter(l => {
+                if (!l.RecordDate) return false;
+                const parts = l.RecordDate.split('/');
+                if (parts.length === 3) {
+                    const rowDate = new Date(parts[2], parts[1] - 1, parts[0]);
+                    return rowDate >= state.dateRange.start && rowDate <= state.dateRange.end;
+                }
+                return false;
+            });
+        }
+
+        renderLeadStatusCards(tempLeads);
+
+        if (state.currentFilter !== 'All') {
+            if (state.currentFilter === 'รอติดต่อ') {
+                tempLeads = tempLeads.filter(l => !l.ContactResult || l.ContactResult === '');
+            } else {
+                tempLeads = tempLeads.filter(l => l.ContactResult === state.currentFilter);
+            }
+        }
+
+        state.filtered = tempLeads;
+        renderTable();
+    }
+
+    function renderLeadStatusCards(dataToCount = state.leads) {
+        const counts = dataToCount.reduce((acc, curr) => {
+            let status = curr.ContactResult || 'รอติดต่อ';
+            acc[status] = (acc[status] || 0) + 1;
+            acc['All'] = (acc['All'] || 0) + 1;
+            return acc;
+        }, { 'All': 0, 'รอติดต่อ': 0 });
+
+        const configs = [
+            { id: 'All', label: 'เคสทั้งหมด', count: counts['All'], style: 'text-dark bg-white', icon: 'fa-solid fa-users' },
+            { id: 'รอติดต่อ', label: 'รอติดต่อ (Raw)', count: counts['รอติดต่อ']||0, style: 'text-secondary bg-light border', icon: 'fa-solid fa-hourglass-half' },
+            { id: 'ติดต่อได้ - คุยเบื้องต้น', label: 'คุยเบื้องต้น', count: counts['ติดต่อได้ - คุยเบื้องต้น']||0, style: 'text-primary bg-primary bg-opacity-10', icon: 'fa-solid fa-phone-volume' },
+            { id: 'ไม่รับสาย', label: 'ไม่รับสาย', count: counts['ไม่รับสาย']||0, style: 'text-danger bg-danger bg-opacity-10', icon: 'fa-solid fa-phone-slash' },
+            { id: 'Add Line เรียบร้อย', label: 'Add Line เรียบร้อย (พร้อมประเมิน)', count: counts['Add Line เรียบร้อย']||0, style: 'text-success bg-success bg-opacity-10', icon: 'fa-brands fa-line' }
+        ];
+
+        let html = '';
+        configs.forEach(c => {
+            const active = state.currentFilter === c.id ? 'active-filter' : '';
+            html += `
+            <div class="col">
+                <div class="card p-card ${active} h-100" onclick="filterByContactResult('${c.id}')">
+                    <div class="card-body d-flex justify-content-between align-items-center">
+                        <div>
+                            <div class="small fw-bold text-muted">${c.label}</div>
+                            <h3 class="mb-0 mt-1 fw-bold">${c.count}</h3>
+                        </div>
+                        <div class="badge ${c.style} p-2 rounded-circle fs-5">
+                            <i class="${c.icon}"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>`;
+        });
+        
+        const container = document.getElementById('pValueCards');
+        if (container) container.innerHTML = html;
+    }
+
+    // ==========================================
+    // 🗃️ 2. ฟังก์ชันแสดงตาราง Leads
+    // ==========================================
+    function handleRowClick(event, leadId) {
+        if (event.ctrlKey || event.metaKey) {
+            event.preventDefault(); 
+            editLead(leadId);
+        }
+    }
+
+    function renderTable() {
+        const tbody = document.getElementById('leadsTableBody');
+        if(!tbody) return;
+
+        if(state.filtered.length === 0) {
+            tbody.innerHTML = `<tr><td colspan="10" class="text-center py-5 text-muted">ไม่พบข้อมูลผู้สมัครในระบบ</td></tr>`;
+            return;
+        }
+
+        tbody.innerHTML = state.filtered.map((row, index) => {
+            let actionBtn = `<button type="button" class="btn btn-sm btn-outline-secondary rounded-circle shadow-sm" title="แก้ไขข้อมูล" onclick="editLead('${row.Lead_ID}')"><i class="fa-solid fa-pen"></i></button>`;
+            actionBtn += ` <button type="button" class="btn btn-sm btn-outline-info rounded-pill ms-1 shadow-sm px-3 fw-bold" title="ประวัติการติดต่อ" onclick="viewLogs('${row.Lead_ID}')"><i class="fa-solid fa-clock-rotate-left me-1"></i> ประวัติ</button>`;
+            actionBtn += ` <button type="button" class="btn btn-sm btn-outline-danger rounded-circle ms-1 shadow-sm" title="ลบข้อมูล" onclick="deleteLead('${row.Lead_ID}')"><i class="fa-solid fa-trash"></i></button>`;
+            
+            if (row.ContactResult === 'Add Line เรียบร้อย' && !row.P_Value) {
+                actionBtn += ` <br><button class="btn btn-sm btn-success mt-1 shadow-sm w-100 fw-bold mt-1" onclick="openAssessment('${row.Lead_ID}')"><i class="fa-brands fa-line"></i> ประเมิน P</button>`;
+            }
+
+            const beneatIcon = `<svg width="16" height="16" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg" class="me-1"><path d="M50 5C25.1 5 5 25.1 5 50c0 10.4 3.6 20 9.6 27.6L10 95l18.4-4.8c7 3.1 14.8 4.8 23.1 4.8 24.9 0 45-20.1 45-45S74.9 5 50 5z" fill="#3bc2d6"/><text x="48" y="70" font-family="Arial, sans-serif" font-weight="900" font-size="50" fill="#FFFFFF" text-anchor="middle" transform="rotate(-8 50 50)">B</text></svg>`;
+            const chatLinkBtn = row.ChatLink ? `<a href="${row.ChatLink}" target="_blank" class="btn btn-sm btn-light border text-primary fw-bold px-2 py-0 mt-1 d-inline-flex align-items-center" onclick="event.stopPropagation()">${beneatIcon} แชท</a>` : '<div class="text-muted small mt-1">-</div>';
+            
+            const encodedNote = encodeURIComponent(row.Notes || '-');
+            const ageDisplay = row.Age ? ` <span class="badge bg-light text-secondary border ms-1 fw-normal" style="font-size: 0.75rem;">อายุ ${row.Age} ปี</span>` : '';
+
+            // 🌟 หน้า Leads แสดงชื่อ "คนสร้างเคส" (Admin)
+            let adminDisplay = row.Admin || 'Auto';
+            const matchedAdmin = state.admins.find(a => a.email === row.Admin);
+            if (matchedAdmin && matchedAdmin.name) adminDisplay = matchedAdmin.name;
+
+            return `
+            <tr onclick="handleRowClick(event, '${row.Lead_ID}')" style="cursor: pointer;" title="Ctrl + Click เพื่อแก้ไข">
+                <td class="fw-bold text-center text-muted">${index + 1}</td>
+                <td>${row.RecordDate || '-'}</td>
+                <td class="fw-bold">${row.FullName || '-'}${ageDisplay} <br><small class="text-muted">${row.JobType || '-'}</small></td>
+                <td>
+                    <div class="text-nowrap"><i class="fa-solid fa-phone text-success small"></i> ${row.Phone || '-'}</div>
+                    ${chatLinkBtn}
+                </td>
+                <td><span class="badge bg-light text-dark border">${row.Channel || '-'}</span></td>
+                <td>
+                    <div class="fw-bold text-dark small">${row.Province || '-'}</div>
+                    <div class="text-muted small">${row.District || '-'}</div>
+                </td>
+                <td>${row.ContactStatus || '-'} <br><small class="${row.ContactResult === 'Add Line เรียบร้อย' ? 'text-success fw-bold' : 'text-muted'}">${row.ContactResult || '-'}</small></td>
+                <td onclick="showFullNote(event, '${encodedNote}')">
+                    <div class="text-muted small p-1 bg-light rounded border" style="max-width: 140px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; cursor: pointer;">
+                        ${row.Notes || '-'}
+                    </div>
+                </td>
+                <td><span class="badge bg-light text-dark border"><i class="fa-solid fa-user-pen small text-primary me-1"></i> ${adminDisplay}</span></td>
+                <td class="text-center" onclick="event.stopPropagation()">${actionBtn}</td>
+            </tr>
+            `;
+        }).join('');
+    }
+
+    // ==========================================
+    // 📝 3. ฟังก์ชันฟอร์ม (Add/Edit) อัจฉริยะ (Dynamic Column Mapping)
+    // ==========================================
+    
+    // 🌟 ฟังก์ชันตัวช่วย บันทึกประวัติ (Log) แบบสมบูรณ์
+     async function writeLogToSupabase(action, module, details) {
+        const userEmail = state.currentUser?.email || 'System';
+        const logId = "LOG-" + new Date().getTime(); 
+        
+        // 🌟 แก้ไข: จัดการเวลาให้เป็น Local Time (เวลาไทย) ป้องกันเวลาช้าไป 7 ชั่วโมง
+        const now = new Date();
+        const year = now.getFullYear();
+        const month = String(now.getMonth() + 1).padStart(2, '0');
+        const day = String(now.getDate()).padStart(2, '0');
+        const hours = String(now.getHours()).padStart(2, '0');
+        const minutes = String(now.getMinutes()).padStart(2, '0');
+        const seconds = String(now.getSeconds()).padStart(2, '0');
+        const tsStr = `${year}-${month}-${day}T${hours}:${minutes}:${seconds}`; 
+
+        try {
+            const { data: sample } = await supabase.from('db_logs').select('*').limit(1);
+            const dbKeys = (sample && sample.length > 0) ? Object.keys(sample[0]) : [];
+            const getCol = (names) => names.find(k => dbKeys.includes(k)) || names[0];
+
+            let payload = {};
+            payload[getCol(['logid', 'log_id', 'Log_ID', 'id'])] = logId;
+            payload[getCol(['useremail', 'user_email', 'UserEmail', 'email'])] = userEmail;
+            payload[getCol(['action', 'Action'])] = action;
+            payload[getCol(['module', 'Module'])] = module;
+            payload[getCol(['details', 'Details'])] = details;
+
+            const tsCol = getCol(['timestamp', 'Timestamp', 'created_at', 'createdat']);
+            if (dbKeys.includes(tsCol) || dbKeys.length === 0) { 
+                payload[tsCol] = tsStr;
+            }
+
+            await supabase.from('db_logs').insert([payload]);
+        } catch(e) { 
+            console.error("Log error (ignored):", e); 
+        }
+    }
+
+    document.addEventListener('DOMContentLoaded', () => {
+        const addLeadForm = document.getElementById('addLeadForm');
+        if (addLeadForm) {
+            addLeadForm.addEventListener('submit', async function(e) {
+                e.preventDefault();
+                const fd = new FormData(this);
+                const leadId = fd.get('leadId'); 
+                const userEmail = state.currentUser?.email || 'System';
+
+                Swal.fire({ title: 'กำลังบันทึก...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
+
+                try {
+                    const { data: sample } = await supabase.from('db_leads').select('*').limit(1);
+                    const dbKeys = (sample && sample.length > 0) ? Object.keys(sample[0]) : [];
+                    const getCol = (names) => names.find(k => dbKeys.includes(k)) || names[0];
+
+                    let payload = {};
+                    payload[getCol(['recorddate', 'record_date', 'RecordDate'])] = formatDateForDB(fd.get('recordDate'));
+                    payload[getCol(['fullname', 'full_name', 'FullName'])] = fd.get('fullName');
+                    payload[getCol(['phone', 'Phone'])] = fd.get('phone');
+                    payload[getCol(['channel', 'Channel'])] = fd.get('channel');
+                    payload[getCol(['jobtype', 'job_type', 'JobType'])] = fd.get('jobType');
+                    payload[getCol(['contactstatus', 'contact_status', 'ContactStatus'])] = fd.get('contactStatus');
+                    payload[getCol(['contactresult', 'contact_result', 'ContactResult'])] = fd.get('contactResult');
+                    payload[getCol(['province', 'Province'])] = fd.get('province');
+                    payload[getCol(['district', 'District'])] = fd.get('district');
+                    
+                    const ageVal = fd.get('age');
+                    payload[getCol(['age', 'Age'])] = ageVal ? parseInt(ageVal) : null;
+                    
+                    payload[getCol(['startwithin', 'start_within', 'StartWithin'])] = fd.get('startWithin');
+                    payload[getCol(['chatlink', 'chat_link', 'ChatLink'])] = fd.get('chatLink');
+                    payload[getCol(['isapplicant', 'is_applicant', 'IsApplicant'])] = fd.get('isApplicant');
+                    payload[getCol(['notes', 'Notes'])] = fd.get('notes');
+
+                    const idCol = getCol(['leadid', 'lead_id', 'Lead_ID']);
+                    const adminCol = getCol(['adminemail', 'admin_email', 'admin', 'Admin']); // 🌟 คนเปิดเคส
+                    const assignedAdminCol = getCol(['assigned_admin', 'assignedadmin', 'Assigned_Admin']); // 🌟 คนดำเนินการ P-Value
+
+                    // 🌟 LOGIC สำคัญ: เช็คการเปลี่ยนสถานะเป็น Add Line เรียบร้อย เพื่อล้างค่า 'คนดำเนินการ P-Value' 🌟
+                    const contactResult = fd.get('contactResult');
+                    const isQualifiedNow = (contactResult === 'Add Line เรียบร้อย' || contactResult === 'แอดไลน์แล้ว');
+                    let shouldClearAssignedAdmin = false;
+
+                    if (leadId) {
+                        // ดึงข้อมูลเดิมมาเช็ค
+                        const oldLead = state.leads.find(l => l.Lead_ID === leadId || l.lead_id === leadId || l.leadid === leadId);
+                        const oldResult = oldLead ? (oldLead.ContactResult || oldLead.contact_result || oldLead.contactresult) : '';
+                        const wasQualified = (oldResult === 'Add Line เรียบร้อย' || oldResult === 'แอดไลน์แล้ว');
+                        
+                        // ถ้าเพิ่งเปลี่ยนเป็น Add Line สดๆ ร้อนๆ ให้ล้าง assigned_admin ส่งเข้ากองกลาง P-Value ทันที
+                        if (isQualifiedNow && !wasQualified) {
+                            shouldClearAssignedAdmin = true;
+                        }
+                    } else {
+                        // ถ้าเป็นการสร้างเคสใหม่ แล้วใส่สถานะเป็น Add Line เลย
+                        if (isQualifiedNow) {
+                            shouldClearAssignedAdmin = true;
+                        }
+                    }
+
+                    // ล้างแอดมินดำเนินการ เพื่อให้เคสเข้าไปที่ 'รอจ่ายงาน' ในหน้า P-Value
+                    if (shouldClearAssignedAdmin) {
+                        payload[assignedAdminCol] = ''; 
+                    }
+
+                    if (leadId) {
+                        // 🔄 กรณีแก้ไข: ไม่อัปเดต adminCol เพราะต้องเก็บชื่อคนสร้างดั้งเดิมไว้
+                        const { error } = await supabase.from('db_leads').update(payload).eq(idCol, leadId);
+                        if (error) throw error;
+                        
+                        await writeLogToSupabase('UPDATE_LEAD', 'Leads', `Updated Lead ID: ${leadId}`);
+                    } else {
+                        // 🆕 กรณีสร้างใหม่: บันทึกอีเมลคนสร้างลง adminCol
+                        const newId = "PRS-" + new Date().getTime().toString().substring(7);
+                        payload[idCol] = newId;
+                        payload[adminCol] = userEmail; 
+
+                        const { error } = await supabase.from('db_leads').insert([payload]);
+                        if (error) throw error;
+                        
+                        await writeLogToSupabase('CREATE_LEAD', 'Leads', `Created New Lead: ${newId}`);
+                    }
+
+                    // ปิดหน้าต่าง อัปเดตข้อมูล
+                    const modalEl = document.getElementById('addLeadModal');
+                    if (modalEl) bootstrap.Modal.getOrCreateInstance(modalEl).hide();
+                    resetLeadForm();
+                    Swal.fire({ toast: true, position: 'top-end', icon: 'success', title: 'บันทึกข้อมูลเรียบร้อย', showConfirmButton: false, timer: 3000 });
+                    
+                    loadInitialDataFromSupabase();
+
+                } catch (err) {
+                    console.error("Save Error:", err);
+                    Swal.fire('เกิดข้อผิดพลาดในการบันทึก', err.message, 'error');
+                }
+            });
+        }
+    });
+
+    function editLead(leadId) {
+        const lead = state.leads.find(l => l.Lead_ID === leadId || l.lead_id === leadId || l.leadid === leadId);
+        if (!lead) return;
+
+        const modalTitle = document.getElementById('leadModalTitle');
+        if (modalTitle) modalTitle.innerText = 'แก้ไขข้อมูล: ' + leadId;
+        
+        const actionLeadId = document.getElementById('actionLeadId');
+        if (actionLeadId) actionLeadId.value = leadId;
+
+        const f = document.getElementById('addLeadForm');
+        if (!f) return;
+        
+        if(f.elements['recordDate']) {
+            f.elements['recordDate'].value = lead.RecordDate || '';
+            const fp = f.elements['recordDate']._flatpickr;
+            if(fp && lead.RecordDate) fp.setDate(lead.RecordDate, false, "d/m/Y");
+        }
+
+        if(f.elements['fullName']) f.elements['fullName'].value = lead.FullName || '';
+        if(f.elements['phone']) f.elements['phone'].value = lead.Phone || '';
+        if(f.elements['channel']) f.elements['channel'].value = lead.Channel || '';
+        
+        const typeTech = document.getElementById('typeTech');
+        const typeMaid = document.getElementById('typeMaid');
+        if (lead.JobType === 'ช่างแอร์') {
+            if(typeTech) typeTech.checked = true;
+        } else {
+            if(typeMaid) typeMaid.checked = true;
+        }
+
+        if(f.elements['contactStatus']) f.elements['contactStatus'].value = lead.ContactStatus || '';
+        if(f.elements['contactResult']) f.elements['contactResult'].value = lead.ContactResult || '';
+        
+        if(provinceSelectControl) provinceSelectControl.setValue(lead.Province || '', true); 
+        populateDistrict(lead.Province || '', lead.District || '');
+
+        if(f.elements['age']) f.elements['age'].value = lead.Age || '';
+        if(f.elements['startWithin']) f.elements['startWithin'].value = lead.StartWithin || '';
+        if(f.elements['chatLink']) f.elements['chatLink'].value = lead.ChatLink || '';
+        if(f.elements['notes']) f.elements['notes'].value = lead.Notes || '';
+
+        const appYes = document.getElementById('appYes');
+        const appNo = document.getElementById('appNo');
+        if (lead.IsApplicant === 'มี') {
+            if(appYes) appYes.checked = true;
+        } else {
+            if(appNo) appNo.checked = true;
+        }
+
+        const modalEl = document.getElementById('addLeadModal');
+        if (modalEl) bootstrap.Modal.getOrCreateInstance(modalEl).show();
+    }
+
+    function resetLeadForm() {
+        const f = document.getElementById('addLeadForm');
+        if (f) f.reset();
+        const actionLeadId = document.getElementById('actionLeadId');
+        if (actionLeadId) actionLeadId.value = '';
+        const modalTitle = document.getElementById('leadModalTitle');
+        if (modalTitle) modalTitle.innerText = 'เพิ่มผู้สมัครใหม่';
+        if(provinceSelectControl) provinceSelectControl.clear(true);
+        const recordDateInput = document.getElementById('recordDate');
+        if(recordDateInput && recordDateInput._flatpickr) recordDateInput._flatpickr.setDate(new Date());
+    }
+
+    // ==========================================
+    // 🗑️ 4. ฟังก์ชันลบข้อมูล และดูประวัติอัจฉริยะ
+    // ==========================================
+    async function deleteLead(leadId) {
+        const result = await Swal.fire({
+            title: 'ยืนยันการลบข้อมูล?', 
+            text: `คุณต้องการลบผู้สมัครรหัส ${leadId} ใช่หรือไม่?`,
+            icon: 'warning', showCancelButton: true, confirmButtonColor: '#d33', confirmButtonText: 'ใช่, ลบทิ้ง'
+        });
+
+        if (result.isConfirmed) {
+            Swal.fire({ title: 'กำลังลบ...', didOpen: () => Swal.showLoading() });
+            try {
+                const { data: sample } = await supabase.from('db_leads').select('*').limit(1);
+                const dbKeys = (sample && sample.length > 0) ? Object.keys(sample[0]) : [];
+                let idCol = ['leadid', 'lead_id', 'Lead_ID'].find(k => dbKeys.includes(k)) || 'leadid';
+
+                const { error } = await supabase.from('db_leads').delete().eq(idCol, leadId);
+                if (error) throw error;
+                
+                await writeLogToSupabase('DELETE_LEAD', 'Leads', `Deleted Lead ID: ${leadId}`);
+
+                Swal.fire('ลบสำเร็จ!', 'ข้อมูลผู้สมัครถูกลบเรียบร้อยแล้ว', 'success');
+                loadInitialDataFromSupabase();
+            } catch (err) {
+                Swal.fire('เกิดข้อผิดพลาดในการลบ', err.message, 'error');
+            }
+        }
+    }
+
+    async function viewLogs(leadId) {
+        Swal.fire({ title: 'กำลังโหลดประวัติ...', didOpen: () => Swal.showLoading() });
+        try {
+            const { data: sample } = await supabase.from('db_logs').select('*').limit(1);
+            const dbKeys = (sample && sample.length > 0) ? Object.keys(sample[0]) : [];
+            const detCol = ['details', 'Details'].find(k => dbKeys.includes(k)) || 'details';
+
+            const { data, error } = await supabase.from('db_logs').select('*').ilike(detCol, `%${leadId}%`);
+            if (error) throw error;
+
+            let html = '<div class="text-start mt-3" style="max-height: 400px; overflow-y: auto; padding: 10px 10px 10px 20px;">';
+            if(!data || data.length === 0) {
+                html += '<div class="text-center text-muted py-4">ยังไม่มีประวัติการทำรายการ</div>';
+            } else {
+                // จัดเรียงเวลา
+                data.sort((a, b) => {
+                    let dateA = new Date(a.created_at || a.Timestamp || a.timestamp || 0);
+                    let dateB = new Date(b.created_at || b.Timestamp || b.timestamp || 0);
+                    return dateB - dateA;
+                });
+
+                data.forEach(log => {
+                    const d = new Date(log.created_at || log.Timestamp || log.timestamp);
+                    let ts = '-';
+                    if (!isNaN(d.getTime())) {
+                        ts = `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth()+1).padStart(2, '0')}/${d.getFullYear()} ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+                    }
+
+                    const actionText = log.action || log.Action || '-';
+                    const detailText = log.details || log.Details || '-';
+                    const emailText = log.useremail || log.user_email || log.UserEmail || 'System';
+
+                    html += `
+                    <div class="border-start border-primary border-3 ps-3 mb-4 position-relative">
+                        <div class="position-absolute top-0 start-0 translate-middle bg-primary rounded-circle" style="width: 14px; height: 14px;"></div>
+                        <div class="fw-bold text-dark mb-1 fs-6">${actionText}</div>
+                        <div class="text-muted small mb-2"><i class="fa-regular fa-clock me-1"></i> ${ts}</div>
+                        <div class="bg-light p-3 rounded small text-secondary border shadow-sm">${detailText}</div>
+                        <div class="mt-2 small fw-bold text-primary"><i class="fa-solid fa-user-pen me-1"></i> โดย: ${emailText}</div>
+                    </div>`;
+                });
+            }
+            html += '</div>';
+            Swal.fire({ 
+                title: `<i class="fa-solid fa-clock-rotate-left text-primary"></i> ประวัติการทำงาน`, 
+                html: `<div class="fs-6 text-muted mb-2 border-bottom pb-2">รหัสผู้สมัคร: <strong>${leadId}</strong></div>${html}`, 
+                width: 600, confirmButtonText: 'ปิดหน้าต่าง', confirmButtonColor: '#6c757d'
+            });
+        } catch (err) {
+            Swal.fire('Error', err.message, 'error');
+        }
+    }
+</script>
