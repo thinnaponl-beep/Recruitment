@@ -33,6 +33,7 @@
                             <th class="text-center" style="width: 80px;">ลำดับที่</th>
                             <th>ชื่อ-นามสกุล</th>
                             <th>การติดต่อ (โทร/แชท)</th>
+                            <th>ช่องทาง</th>
                             <th>ประเภท</th>
                             <th>สถานะ P-Value</th>
                             <th>ผู้แนะนำ</th>
@@ -84,8 +85,9 @@
                                 <option value="" selected disabled>-- เลือกเกรด --</option>
                                 <option value="P100">P100 (เสร็จสิ้น/นัดอบรม)</option>
                                 <option value="P90">P90 (รอโอนจอง)</option>
-                                <option value="P80">P80 (สนใจ/รอตัดสินใจ)</option>
-                                <option value="P50">P50 (ติดต่อไม่ได้)</option>
+                                <option value="P80">P80 (สนใจ รอแจ้งวันอบรม)</option>
+                                <option value="P50">P50 (รอตัดสินใจ)</option>
+                                <option value="P50">P40 (ติดต่อไม่ได้)</option>
                                 <option value="P00">P00 (ไม่ผ่าน/ปฏิเสธ)</option>
                             </select>
                         </div>
@@ -93,13 +95,10 @@
                         <!-- ผู้แนะนำ และ ตรวจประวัติ -->
                         <div class="row mb-3">
                             <div class="col-6">
-                                <label class="form-label fw-bold small text-muted">2. ผู้แนะนำ</label>
-                                <select class="form-select" name="referrer">
+                                <label class="form-label fw-bold small text-muted">2. ผู้แนะนำ (โค้ดอินฟลู)</label>
+                                <!-- 🌟 เพิ่ม ID assessReferrerSelect ตรงนี้ 🌟 -->
+                                <select class="form-select" name="referrer" id="assessReferrerSelect">
                                     <option value="" selected>-- เลือก --</option>
-                                    <option value="เพื่อนแนะนำ">เพื่อนแนะนำ</option>
-                                    <option value="แอดมิน">แอดมิน</option>
-                                    <option value="Walk-in">Walk-in</option>
-                                    <option value="อื่นๆ">อื่นๆ</option>
                                 </select>
                             </div>
                             <div class="col-6">
