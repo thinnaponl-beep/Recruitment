@@ -1,0 +1,176 @@
+<div class="container-fluid p-4">
+    <!-- Dashboard Cards for P-Value Team -->
+    <div class="row g-3 mb-4" id="pValueDashboardCards">
+        <!-- JS generates cards here -->
+    </div>
+
+    <!-- Table of Qualified Leads -->
+    <div class="card shadow-sm border-0">
+        <!-- 🌟 เพิ่มส่วนแสดงผลและตัวกรองวันที่ 🌟 -->
+        <div class="card-header bg-white py-3 border-0 d-flex justify-content-between align-items-center flex-wrap gap-3">
+            <div>
+                <h5 class="mb-0 fw-bold text-dark"><i class="fa-solid fa-star text-warning me-2"></i> รายชื่อผู้สมัครที่แอดไลน์แล้ว (Qualified Leads)</h5>
+                <small class="text-muted">กรุณาประเมินศักยภาพ P-Value เพื่อเตรียมตัวเข้าสู่ขั้นตอนอบรม</small>
+            </div>
+            
+            <div class="d-flex align-items-center gap-2">
+                <label class="form-label mb-0 fw-bold text-muted small" style="white-space: nowrap;">กรองวันที่บันทึก:</label>
+                <div class="input-group input-group-sm" style="width: 260px;">
+                    <span class="input-group-text bg-white text-muted"><i class="fa-regular fa-calendar"></i></span>
+                    <input type="text" class="form-control" id="pValueDateFilter" placeholder="เลือกช่วงวันที่...">
+                    <button class="btn btn-outline-secondary" type="button" onclick="clearPValueDateFilter()" title="ล้างตัวกรอง">
+                        <i class="fa-solid fa-xmark"></i>
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <div class="card-body">
+            <div class="table-responsive">
+                <table class="table table-hover align-middle">
+                    <thead class="table-light">
+                        <tr>
+                            <th class="text-center" style="width: 80px;">ลำดับที่</th>
+                            <th>ชื่อ-นามสกุล</th>
+                            <th>การติดต่อ (โทร/แชท)</th>
+                            <th>ประเภท</th>
+                            <th>สถานะ P-Value</th>
+                            <th>ผู้แนะนำ</th>
+                            <th>ตรวจประวัติ</th>
+                            <th>โน้ตเบื้องต้น</th>
+                            <th>แอดมิน</th>
+                            <th class="text-center">จัดการ</th>
+                        </tr>
+                    </thead>
+                    <tbody id="pValueTableBody">
+                        <!-- JS generates rows here -->
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ========================================================
+     MODAL: ฟอร์มประเมินศักยภาพ (3rd Column Assessment)
+     ======================================================== -->
+<div class="modal fade" id="assessmentModal" data-bs-backdrop="static" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content border-0 shadow-lg">
+            <div class="modal-header border-0 pb-0">
+                <h5 class="modal-title fw-bold text-purple"><i class="fa-solid fa-clipboard-check"></i> ประเมินศักยภาพ P-Value</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <form id="assessmentForm">
+                <div class="modal-body p-4">
+                    <div class="alert bg-p90 text-p90 border-0 mb-4">
+                        <small class="fw-bold">กำลังประเมิน:</small> <span id="assessLeadName" class="fw-bold fs-5">...</span>
+                        <input type="hidden" name="leadId" id="assessLeadId">
+                    </div>
+
+                    <div class="section-card border-top-purple p-0 border-0 shadow-none">
+                        
+                        <div class="mb-3">
+                            <label class="form-label fw-bold small text-muted">โปรโมชั่นแคมเปญ</label>
+                            <select class="form-select fw-bold text-danger" name="promo" id="assessPromoSelect">
+                                <option value="" selected>-- ไม่ระบุโปรโมชั่น --</option>
+                                <!-- JS จะดึงตัวเลือกมาใส่ให้ตรงนี้ -->
+                            </select>
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label fw-bold small text-muted">1. ผลการประเมิน (P-Value) *</label>
+                            <select class="form-select form-select-lg fw-bold text-primary" name="pValue" required>
+                                <option value="" selected disabled>-- เลือกเกรด --</option>
+                                <option value="P100">P100 (เสร็จสิ้น/นัดอบรม)</option>
+                                <option value="P90">P90 (รอโอนจอง)</option>
+                                <option value="P80">P80 (สนใจ/รอตัดสินใจ)</option>
+                                <option value="P50">P50 (ติดต่อไม่ได้)</option>
+                                <option value="P00">P00 (ไม่ผ่าน/ปฏิเสธ)</option>
+                            </select>
+                        </div>
+
+                        <!-- ผู้แนะนำ และ ตรวจประวัติ -->
+                        <div class="row mb-3">
+                            <div class="col-6">
+                                <label class="form-label fw-bold small text-muted">2. ผู้แนะนำ</label>
+                                <select class="form-select" name="referrer">
+                                    <option value="" selected>-- เลือก --</option>
+                                    <option value="เพื่อนแนะนำ">เพื่อนแนะนำ</option>
+                                    <option value="แอดมิน">แอดมิน</option>
+                                    <option value="Walk-in">Walk-in</option>
+                                    <option value="อื่นๆ">อื่นๆ</option>
+                                </select>
+                            </div>
+                            <div class="col-6">
+                                <label class="form-label fw-bold small text-muted">3. การตรวจประวัติ</label>
+                                <select class="form-select" name="backgroundCheck">
+                                    <option value="" selected>-- เลือก --</option>
+                                    <option value="ผ่าน">ผ่าน</option>
+                                    <option value="กำลังตรวจ">กำลังตรวจ</option>
+                                    <option value="ไม่ผ่าน (ติดประวัติ)">ไม่ผ่าน (ติดประวัติ)</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label fw-bold small text-muted">4. สถานะการอบรม</label>
+                            <select class="form-select" name="trainingStatus">
+                                <option value="" selected>เลือก...</option>
+                                <option value="รอพิจารณา">รอพิจารณา</option>
+                                <option value="จองอบรม">จองอบรม</option>
+                                <option value="อบรมแล้ว">อบรมแล้ว</option>
+                            </select>
+                        </div>
+
+                        <div class="mb-2">
+                            <label class="form-label fw-bold small text-muted">5. สรุปเนื้อหาสัมภาษณ์ / โน้ตเพิ่มเติม</label>
+                            <textarea class="form-control" name="notes" id="staffNotesAssess" rows="4" placeholder="ระบุเหตุผลในการให้คะแนน หรือข้อมูลสำคัญอื่นๆ..."></textarea>
+                        </div>
+
+                        <div class="tags-container">
+                            <span class="tag-badge" onclick="appendTag(this)">#ปัญหาค่าใช้จ่าย</span>
+                            <span class="tag-badge" onclick="appendTag(this)">#สนใจรับเป็นงานเสริม</span>
+                            <span class="tag-badge" onclick="appendTag(this)">#หาข้อมูลไว้ก่อน</span>
+                            <span class="tag-badge" onclick="appendTag(this)">#คุณสมบัติไม่ผ่านเกณฑ์</span>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer border-top bg-light">
+                    <button type="button" class="btn btn-outline-secondary px-4 fw-bold" data-bs-dismiss="modal">ยกเลิก</button>
+                    <button type="submit" class="btn btn-primary px-5 fw-bold">บันทึกผลประเมิน</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- ========================================================
+     MODAL: ดูประวัติการประเมิน (P-Value History)
+     ======================================================== -->
+<div class="modal fade" id="historyModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable">
+        <div class="modal-content border-0 shadow-lg">
+            <div class="modal-header border-0 pb-0">
+                <h5 class="modal-title fw-bold text-info"><i class="fa-solid fa-clock-rotate-left me-2"></i> ประวัติการประเมิน (P-Value)</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body p-4">
+                <div class="alert bg-light border mb-4">
+                    <small class="fw-bold text-muted">กำลังดูประวัติรหัส:</small> <span id="historyLeadId" class="fw-bold text-dark fs-6">...</span>
+                </div>
+                
+                <!-- กล่องใส่ข้อมูลประวัติ -->
+                <div id="historyContent" class="text-start mt-3">
+                    <div class="text-center text-muted py-4">
+                        <div class="spinner-border spinner-border-sm me-2" role="status"></div> กำลังโหลดประวัติ...
+                    </div>
+                </div>
+                
+            </div>
+            <div class="modal-footer border-top bg-light">
+                <button type="button" class="btn btn-secondary px-4 fw-bold" data-bs-dismiss="modal">ปิดหน้าต่าง</button>
+            </div>
+        </div>
+    </div>
+</div>
