@@ -22,13 +22,15 @@
         leads: [], 
         filtered: [], 
         promotions: [], 
+        referrers: [], // 🌟 เพิ่ม state เก็บข้อมูล Referrers
         admins: [],
         trainings: [],
         thaiData: LOCATION_DATA,
         currentFilter: 'All', 
         currentPage: 'leads',
         initialDropdowns: {},
-        dateRange: { start: null, end: null } 
+        dateRange: { start: null, end: null },
+        _isTrainingLoadedForPromo: false // Flag ป้องกันดึงข้อมูลซ้ำซ้อน
     };
 
     let provinceSelectControl;
@@ -182,8 +184,9 @@
                 loadPromotionsData(); 
             } else if (pageId === 'training' && typeof loadTrainingData === 'function') {
                 loadTrainingData(); 
-            } else if (pageId === 'settings' && typeof loadSettingsDropdowns === 'function') {
-                loadSettingsDropdowns();
+            } else if (pageId === 'settings') {
+                if (typeof renderAdminTable === 'function') renderAdminTable(); // 🌟 อัปเดตข้อมูลแอดมินตอนเปิดหน้า
+                if (typeof loadSettingsDropdowns === 'function') loadSettingsDropdowns();
             }
         } catch (e) { 
             console.error("Navigation Error:", e); 
@@ -196,11 +199,45 @@
     
     async function loadInitialDataFromSupabase() {
         try {
-            // 1. ดึงข้อมูล Leads
-            const { data: leadsData, error: leadsErr } = await supabase.from('db_leads').select('*');
-            if (leadsErr) throw new Error("ดึงข้อมูล 'db_leads' ไม่สำเร็จ: " + leadsErr.message);
+            Swal.fire({ title: 'กำลังดึงข้อมูลจากระบบ...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
+
+            // 1. ดึงข้อมูล Leads (ปลดการเรียงลำดับจากฝั่ง DB ออก เพื่อป้องกัน Error คอลัมน์ recorddate/record_date ไม่ตรงกัน)
+            const { data: leadsData, error: leadsErr } = await supabase
+                .from('db_leads')
+                .select('*');
+            if (leadsErr && leadsErr.code !== '42P01') throw leadsErr;
             
-            const mappedLeads = (leadsData || []).map(row => ({
+            let rawLeads = leadsData || [];
+            
+            // 🌟 เรียงลำดับข้อมูลโดยอิงจาก "วันที่บันทึก (RecordDate)" เป็นหลัก แล้วดันเคสใหม่ล่าสุดขึ้นบน 🌟
+            rawLeads.sort((a, b) => {
+                // 1. เรียงตามวันที่บันทึก (RecordDate) เป็นหลัก (ใหม่ไปเก่า)
+                const dateA = parseFlexibleDate(a.RecordDate || a.record_date || a.recorddate) || new Date(0);
+                const dateB = parseFlexibleDate(b.RecordDate || b.record_date || b.recorddate) || new Date(0);
+
+                // ปรับเวลาให้เป็น 00:00:00 เพื่อเทียบแค่วันที่ล้วนๆ
+                const timeOnlyA = new Date(dateA).setHours(0,0,0,0);
+                const timeOnlyB = new Date(dateB).setHours(0,0,0,0);
+
+                if (timeOnlyA !== timeOnlyB) {
+                    return timeOnlyB - timeOnlyA;
+                }
+
+                // 2. ถ้าวันที่บันทึกเป็น "วันเดียวกัน" ให้เอารายการที่เพิ่งคีย์เข้าระบบล่าสุดขึ้นก่อน 
+                const createdA = new Date(a.created_at || a.timestamp || a.createdAt || 0).getTime();
+                const createdB = new Date(b.created_at || b.timestamp || b.createdAt || 0).getTime();
+
+                if (createdA !== 0 && createdB !== 0 && createdA !== createdB) {
+                    return createdB - createdA;
+                }
+
+                // 3. สำรองสุดท้าย: ถ้าทุกอย่างเท่ากัน ให้เรียงจากรหัส Lead_ID (เพราะรหัสมักจะ gen จาก Timestamp อยู่แล้ว)
+                const idA = String(a.Lead_ID || a.lead_id || a.leadid || '');
+                const idB = String(b.Lead_ID || b.lead_id || b.leadid || '');
+                return idB.localeCompare(idA);
+            });
+            
+            const mappedLeads = rawLeads.map(row => ({
                 Lead_ID: row.Lead_ID || row.lead_id || row.leadid,
                 RecordDate: formatDateForDisplay(row.RecordDate || row.record_date || row.recorddate), 
                 FullName: row.FullName || row.full_name || row.fullname,
@@ -230,14 +267,15 @@
             if (adminErr) throw new Error("ดึงข้อมูล 'config_system' ไม่สำเร็จ: " + adminErr.message);
             
             const mappedAdmins = (adminData || []).map(a => {
-                // 🌟 ตรวจจับว่าแอดมินคนไหนเป็น Developer
                 const isDevVal = String(a.is_developer || a.Is_Developer || a.is_dev || a.isdev || '').trim().toUpperCase();
+                const autoAssignVal = String(a.AutoAssign_Status || a.auto_assign || a.autoassign_status || '').trim().toUpperCase();
                 return {
                     email: a.Admin_Email || a.email || a.admin_email || a.adminemail,
                     name: a.Admin_Name || a.name || a.admin_name || a.adminname || a.Admin_Email || a.email,
-                    role: a.Role || a.role,
-                    auto: (a.AutoAssign_Status === 'TRUE' || a.auto_assign || a.autoassign_status) ? 'ON' : 'OFF',
-                    is_dev: (isDevVal === 'TRUE' || isDevVal === '1') // 🌟 แปลงเป็น Boolean เก็บไว้
+                    role: a.Role || a.role || 'Admin',
+                    auto: (autoAssignVal === 'TRUE' || autoAssignVal === 'ON' || autoAssignVal === '1') ? 'ON' : 'OFF',
+                    auto_assign: (autoAssignVal === 'TRUE' || autoAssignVal === 'ON' || autoAssignVal === '1'),
+                    is_dev: (isDevVal === 'TRUE' || isDevVal === '1')
                 };
             });
 
@@ -245,10 +283,11 @@
             const { data: dropData, error: dropErr } = await supabase.from('config_dropdowns').select('*');
             if (dropErr) throw new Error("ดึงข้อมูล 'config_dropdowns' ไม่สำเร็จ: " + dropErr.message);
 
-            // 🌟 สร้าง Object เตรียมรับทุกหมวดหมู่ที่จะสร้างใหม่ เพื่อให้พร้อมนำไปใช้งานในฟอร์ม
+            // 🌟 รองรับหมวดหมู่ใหม่ที่แยกกันชัดเจน 🌟
             let dropdowns = { 
-                Channel: [], ContactResult: [], Promo: [], JobType: [],
-                StartWithin: [], BackgroundCheck: [], TrainingStatus: [], QuickTags: [], ContactStatus: []
+                Channel: [], ContactResult_Success: [], ContactResult_Fail: [], Promo: [], JobType: [],
+                StartWithin: [], BackgroundCheck: [], TrainingStatus: [], QuickTags: [], ContactStatus: [],
+                TrainingPageStatus: [], UncontactableKeywords: []
             };
 
             if (dropData) {
@@ -261,24 +300,24 @@
                 sortedDropData.forEach(d => {
                     const cat = d.Category || d.category;
                     const val = d.Value || d.item_value || d.value;
-                    const isActive = d.IsActive === 'TRUE' || d.IsActive === true || d.is_active === 'TRUE' || d.is_active === true || d.isactive === 'TRUE' || d.isactive === true;
+                    const isActive = String(d.IsActive || d.is_active || d.isactive).toUpperCase() !== 'FALSE';
                     
-                    // ป้องกันไม่ให้ดึงข้อมูล Promo จาก config_dropdowns เพราะอาจมีข้อมูลขยะ
-                    if (cat !== 'Promo' && (isActive || typeof d.IsActive === 'undefined' || typeof d.is_active === 'undefined' || typeof d.isactive === 'undefined')) {
-                        if (!dropdowns[cat]) dropdowns[cat] = []; // ถ้าเป็นหมวดหมู่ใหม่ที่ผู้ใช้เพิ่งสร้าง ก็ให้สร้าง Array รอรับเลย
+                    // ข้ามการดึง Promo จากตารางนี้ (เพราะเดี๋ยวดึงจาก db_promotions แทน)
+                    if (cat !== 'Promo' && isActive && val) {
+                        if (!dropdowns[cat]) dropdowns[cat] = []; 
                         dropdowns[cat].push(val);
                     }
                 });
             }
 
-            // 4. ดึงข้อมูล Promotions แบบ Full Logic และบันทึกลง state ทันที
+            const today = new Date();
+            today.setHours(0, 0, 0, 0);
+
+            // 4. ดึงข้อมูล Promotions 
             const { data: promoData, error: promoErr } = await supabase.from('db_promotions').select('*');
-            if (promoErr) throw new Error("ดึงข้อมูล 'db_promotions' ไม่สำเร็จ: " + promoErr.message);
+            if (promoErr) console.warn("ดึงข้อมูล 'db_promotions' ไม่สำเร็จ: " + promoErr.message);
             
             if (promoData) {
-                const today = new Date();
-                today.setHours(0, 0, 0, 0);
-
                 state.promotions = promoData.map(p => {
                     let calcStatus = 'Invalid';
                     let parsedStart = parseFlexibleDate(p.Start_Date || p.start_date || p.startdate);
@@ -304,11 +343,12 @@
                         Status: p.Status || p.status,
                         Calculated_Status: calcStatus,
                         Parsed_Start: parsedStart,
-                        Parsed_End: parsedEnd
+                        Parsed_End: parsedEnd,
+                        Discount_Amount: parseFloat(p.discount_amount || p.Discount_Amount || 0)
                     };
                 });
 
-                // เก็บเฉพาะโปรที่ Active ลงไปเป็นตัวเลือก Dropdown เบื้องต้น
+                // เก็บเฉพาะโปรที่ Active ลงไปเป็นตัวเลือก Dropdown
                 state.promotions.forEach(p => {
                     if (p.Calculated_Status === 'Active') {
                         dropdowns.Promo.push({ id: p.Promo_ID, name: p.Promo_Name });
@@ -316,8 +356,52 @@
                 });
             }
 
+            // 5. ดึงข้อมูล Referrers 
+            const { data: refData, error: refErr } = await supabase.from('db_referrers').select('*');
+            if (refErr) console.warn("ดึงข้อมูล 'db_referrers' ไม่สำเร็จ: " + refErr.message);
+
+            if (refData) {
+                state.referrers = refData.map(r => {
+                    let calcStatus = 'Invalid';
+                    let parsedStart = parseFlexibleDate(r.Start_Date || r.start_date || r.startdate);
+                    let parsedEnd = parseFlexibleDate(r.End_Date || r.end_date || r.enddate);
+
+                    if (parsedStart && parsedEnd) {
+                        parsedStart.setHours(0,0,0,0);
+                        parsedEnd.setHours(23, 59, 59, 999);
+                        const dbStatus = r.Status || r.status;
+
+                        if (dbStatus === 'Inactive') calcStatus = 'Inactive';
+                        else if (today > parsedEnd) calcStatus = 'Expired';
+                        else if (today < parsedStart) calcStatus = 'Upcoming';
+                        else calcStatus = 'Active';
+                    }
+
+                    return {
+                        Ref_ID: r.Ref_ID || r.ref_id || r.refid,
+                        Ref_Name: r.Ref_Name || r.ref_name || r.refname,
+                        Start_Date: r.Start_Date || r.start_date || r.startdate,
+                        End_Date: r.End_Date || r.end_date || r.enddate,
+                        Description: r.Description || r.description,
+                        Status: r.Status || r.status,
+                        Calculated_Status: calcStatus,
+                        Parsed_Start: parsedStart,
+                        Parsed_End: parsedEnd,
+                        Discount_Amount: parseFloat(r.discount_amount || r.Discount_Amount || 0),
+                        Commission_Amount: parseFloat(r.commission_amount || r.Commission_Amount || 0)
+                    };
+                });
+            }
+
+            // 6. ดึงข้อมูล Training (เพื่อให้หน้าโปรโมชั่นสามารถคำนวณยอดเงินได้ทันที)
+            const { data: trainData, error: trainErr } = await supabase.from('db_training').select('*');
+            if (!trainErr) {
+                state.trainings = trainData || [];
+                state._isTrainingLoadedForPromo = true;
+            }
+
             // นำข้อมูลเข้าสู่ Global State 
-            state.leads = mappedLeads.reverse();
+            state.leads = mappedLeads;
             state.filtered = [...state.leads];
             state.admins = mappedAdmins;
             
@@ -333,19 +417,55 @@
 
             state.initialDropdowns = dropdowns;
             
-            // 🌟 ส่งข้อมูลหมวดหมู่ทั้งหมดไปเติมในฟอร์มหน้าต่างๆ
+            // 🌟 เติมข้อมูลลงฟอร์มหน้าต่างๆ 🌟
             populateDropdowns(dropdowns);
 
+            // 🌟 แก้ไข: ซ่อน Loading เสมอเมื่อสำเร็จ 🌟
             const loadingOverlay = document.getElementById('loading-overlay');
             if (loadingOverlay) loadingOverlay.style.display = 'none';
+            Swal.close();
 
-            switchMenu(state.currentPage || 'leads', false);
+            // เปลี่ยนหน้าและอัปเดต UI 
+            refreshActivePage();
 
         } catch (err) {
             console.error("Load Data Error:", err);
-            Swal.fire('Error', 'เกิดข้อผิดพลาดในการโหลดข้อมูล: ' + err.message, 'error');
+            
+            // 🌟 แก้ไข: ป้องกันการค้างที่หน้าจอโหลดด้วยการสั่งซ่อนทับอีกรอบ 🌟
             const loadingOverlay = document.getElementById('loading-overlay');
             if (loadingOverlay) loadingOverlay.style.display = 'none';
+            
+            Swal.fire({
+                icon: 'error',
+                title: 'เกิดข้อผิดพลาดในการโหลดข้อมูล',
+                text: err.message || 'โปรดตรวจสอบการเชื่อมต่อหรือชื่อตารางใน Database'
+            });
+        }
+    }
+
+    // ฟังก์ชันช่วยเพื่อ Refresh การแสดงผลในหน้าปัจจุบันใหม่
+    function refreshActivePage() {
+        const pages = ['leads', 'pvalue', 'training', 'promotions', 'settings'];
+        let activePage = 'leads';
+
+        pages.forEach(p => {
+            const el = document.getElementById('page-' + p);
+            if (el && el.style.display !== 'none') activePage = p;
+        });
+
+        if (activePage === 'leads' && typeof applyFilters === 'function') {
+            applyFilters(); 
+        } else if (activePage === 'pvalue' && typeof renderPValueDashboard === 'function') {
+            renderPValueDashboard();
+        } else if (activePage === 'training' && typeof renderTrainingDashboard === 'function') {
+            renderTrainingDashboard();
+        } else if (activePage === 'promotions' && typeof renderMainPromoDashboard === 'function') {
+            renderMainPromoDashboard();
+            if (typeof renderPromotionsDashboard === 'function') renderPromotionsDashboard();
+            if (typeof renderReferrersDashboard === 'function') renderReferrersDashboard();
+        } else if (activePage === 'settings') {
+            if (typeof renderAdminTable === 'function') renderAdminTable(); // 🌟 อัปเดตข้อมูลแอดมินตอนกดปุ่ม Reload หรือโหลดครั้งแรก
+            if (typeof loadSettingsDropdowns === 'function') loadSettingsDropdowns();
         }
     }
 
@@ -356,11 +476,10 @@
             const el = document.getElementById(id);
             if(!el || !arr) return;
             
-            const currentVal = el.value; // เก็บค่าเดิมไว้ก่อนอัปเดต
+            const currentVal = el.value; 
             el.innerHTML = '<option value="">เลือก...</option>';
             
             arr.forEach(val => {
-                // รองรับ Object เพื่อนำชื่อไปแสดง และใช้ ID เป็น Value (สำหรับ Promo)
                 if (typeof val === 'object' && val !== null) {
                     el.add(new Option(val.name, val.id));
                 } else {
@@ -368,25 +487,18 @@
                 }
             });
             
-            if(currentVal) el.value = currentVal; // พยายามตั้งค่ากลับเป็นค่าเดิมถ้ามีในลิสต์
+            if(currentVal) el.value = currentVal; 
         };
 
-        // ฟอร์มหน้า Leads (ถ้ามี Element เหล่านี้อยู่ในหน้า)
+        // 🌟 ฟอร์มหน้า Leads (ไม่ต้อง fill contactResultSelect แล้วเพราะใช้ระบบ Dependent) 🌟
         fill('channelSelect', drops.Channel);
-        fill('contactResultSelect', drops.ContactResult);
         fill('contactStatus', drops.ContactStatus);
         fill('startWorkWithin', drops.StartWithin);
         
-        // Dropdown โปรโมชั่น (อาจมีทั้งในหน้า Leads และ P-Value)
         fill('promoSelect', drops.Promo); 
         fill('assessPromoSelect', drops.Promo);
 
-        // ฟอร์มหน้า P-Value และอื่นๆ ที่อาจมี
-        // fill('jobTypeSelect', drops.JobType); // กรณีถ้าเปลี่ยน Radio เป็น Select
-        // fill('trainingStatusSelect', drops.TrainingStatus);
-        // fill('backgroundCheckSelect', drops.BackgroundCheck);
-
-        // 🌟 เติม Tag ด่วน (Quick Tags) ในฟอร์ม P-Value หรือ Leads ถ้ามีการตั้งค่าไว้
+        // จัดการ Tag ด่วน (Quick Tags)
         const quickTagsArr = drops.QuickTags || [];
         const updateTags = (containerId) => {
             const container = document.getElementById(containerId);
@@ -397,9 +509,8 @@
             }
         };
         
-        // อัปเดต Tags ในจุดต่างๆ ที่คาดว่าจะมี (สามารถเพิ่ม ID ได้ตามต้องการ)
-        updateTags('quickTags'); // ในหน้า Leads
-        updateTags('assessQuickTags'); // ในหน้า P-Value (ถ้ามีการเพิ่ม div ID นี้เข้าไป)
+        updateTags('quickTags'); 
+        updateTags('assessQuickTags'); 
     }
 
     function initProvinceDropdown() {
@@ -457,7 +568,7 @@
     }
 
     // ==========================================
-    // 🛠️ 6. HELPERS & DATE UTILITIES
+    // 🛠️ 6. HELPERS & DATE UTILITIES (เพิ่มความปลอดภัยในการจัดการ String)
     // ==========================================
     
     function showFullNote(event, encodedText) {
@@ -479,15 +590,12 @@
         const noteArea = document.getElementById('staffNotesAssess') || document.getElementById('notes') || document.getElementById('staffNotes');
         if(!noteArea) return;
         const text = el.innerText;
-        // เช็คว่ามีคำนี้อยู่แล้วหรือยัง เพื่อป้องกันการกดซ้ำ
         if(!noteArea.value.includes(text)) {
-            // เช็คว่าถ้ามีข้อความอยู่แล้วและไม่ได้จบด้วยการเว้นวรรค ให้เคาะ space 1 ที
             if (noteArea.value.length > 0 && !noteArea.value.endsWith(' ') && !noteArea.value.endsWith('\n')) {
                 noteArea.value += ' ';
             }
             noteArea.value += text + ' ';
             
-            // ทำให้ปุ่มกระพริบเวลากด
             el.style.transform = 'scale(0.95)';
             setTimeout(() => el.style.transform = 'scale(1)', 150);
         }
@@ -495,10 +603,11 @@
 
     function formatDateForDisplay(dateStr) {
         if (!dateStr) return '';
-        if (dateStr.includes('/')) return dateStr; 
+        const str = String(dateStr);
+        if (str.includes('/')) return str; 
         
         const d = new Date(dateStr);
-        if (isNaN(d.getTime())) return dateStr; 
+        if (isNaN(d.getTime())) return str; 
         
         const day = String(d.getDate()).padStart(2, '0');
         const month = String(d.getMonth() + 1).padStart(2, '0');
@@ -508,9 +617,10 @@
 
     function formatDateForDB(dateStr) {
         if (!dateStr) return null;
-        if (dateStr.includes('-')) return dateStr; 
+        const str = String(dateStr);
+        if (str.includes('-')) return str; 
         
-        const parts = dateStr.split('/');
+        const parts = str.split('/');
         if (parts.length === 3) {
             return `${parts[2]}-${parts[1]}-${parts[0]}`;
         }
@@ -519,11 +629,36 @@
 
     function parseFlexibleDate(dateStr) {
         if (!dateStr) return null;
-        if (dateStr.includes('/')) {
-            const parts = dateStr.split('/');
+        const str = String(dateStr);
+        if (str.includes('/')) {
+            const parts = str.split('/');
             return new Date(parts[2], parts[1] - 1, parts[0]);
         }
         const d = new Date(dateStr);
         return isNaN(d.getTime()) ? null : d;
     }
+
+    // ==========================================
+    // 🤖 ฟังก์ชันเปิด/ปิด AI Chat Widget 
+    // ==========================================
+    window.toggleAiChat = function() {
+        const aiUrl = "https://script.google.com/a/macros/beneat.co/s/AKfycbz-YQNLOEsPqBbh6yauO-EVhwBYx3Arbrm7gAAecbyTfDPTq8QCKpLisHwJCrxjZYDznw/exec";
+        
+        const fabBtn = document.getElementById('aiFabBtn');
+        if (fabBtn) {
+            fabBtn.style.transform = 'scale(0.9)';
+            setTimeout(() => fabBtn.style.transform = 'scale(1)', 150);
+        }
+        
+        const popupWidth = 420;
+        const popupHeight = 650;
+        const left = window.screen.width - popupWidth - 50; 
+        const top = window.screen.height - popupHeight - 100;
+        
+        window.open(
+            aiUrl, 
+            'AIChatWindow', 
+            `width=${popupWidth},height=${popupHeight},left=${left},top=${top},resizable=yes,scrollbars=yes,status=no`
+        );
+    };
 </script>
