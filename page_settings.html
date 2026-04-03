@@ -75,10 +75,15 @@
                             <button class="list-group-item list-group-item-action py-3 px-4" onclick="selectDropdownCat('ContactStatus')">
                                 <i class="fa-solid fa-phone-flip me-3"></i> สถานะติดต่อ
                             </button>
-                            <button class="list-group-item list-group-item-action py-3 px-4" onclick="selectDropdownCat('ContactResult')">
-                                <i class="fa-solid fa-comment-dots me-3"></i> ผลการติดต่อ
+                            
+                            <!-- 🌟 แก้ไข: แยกเป็น 2 หมวดหมู่ชัดเจน 🌟 -->
+                            <button class="list-group-item list-group-item-action py-3 px-4" onclick="selectDropdownCat('ContactResult_Success')">
+                                <i class="fa-solid fa-phone-volume me-3"></i> ผลการติดต่อ (ติดต่อได้)
                             </button>
-                            <!-- 🌟 หมวดหมู่ใหม่ที่เพิ่มเข้ามา 🌟 -->
+                            <button class="list-group-item list-group-item-action py-3 px-4" onclick="selectDropdownCat('ContactResult_Fail')">
+                                <i class="fa-solid fa-phone-slash me-3"></i> ผลการติดต่อ (ติดต่อไม่ได้)
+                            </button>
+                            
                             <button class="list-group-item list-group-item-action py-3 px-4" onclick="selectDropdownCat('JobType')">
                                 <i class="fa-solid fa-briefcase me-3"></i> ประเภทผู้สมัคร
                             </button>
@@ -89,7 +94,10 @@
                                 <i class="fa-solid fa-file-shield me-3"></i> การตรวจประวัติ
                             </button>
                             <button class="list-group-item list-group-item-action py-3 px-4" onclick="selectDropdownCat('TrainingStatus')">
-                                <i class="fa-solid fa-chalkboard-user me-3"></i> สถานะการอบรม
+                                <i class="fa-solid fa-chalkboard-user me-3"></i> สถานะการอบรม (P-Value)
+                            </button>
+                            <button class="list-group-item list-group-item-action py-3 px-4" onclick="selectDropdownCat('TrainingPageStatus')">
+                                <i class="fa-solid fa-graduation-cap me-3"></i> สถานะรอบอบรม (Training)
                             </button>
                             <button class="list-group-item list-group-item-action py-3 px-4" onclick="selectDropdownCat('QuickTags')">
                                 <i class="fa-solid fa-tags me-3"></i> โน้ตเพิ่มเติม (Tags #)
@@ -123,6 +131,42 @@
                     </div>
                 </div>
             </div>
+        </div>
+    </div>
+</div>
+
+<!-- ========================================================
+     MODAL: เพิ่ม / แก้ไข Dropdown
+     ======================================================== -->
+<div class="modal fade" id="dropdownModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered modal-sm">
+        <div class="modal-content border-0 shadow-lg">
+            <div class="modal-header border-0 pb-0">
+                <h6 class="modal-title fw-bold text-primary"><i class="fa-solid fa-pen-to-square"></i> จัดการตัวเลือก</h6>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <form id="dropdownForm">
+                <input type="hidden" id="dropId" name="id">
+                <div class="modal-body p-4">
+                    <div class="mb-3">
+                        <label class="form-label small fw-bold text-muted">หมวดหมู่</label>
+                        <input type="text" class="form-control bg-light text-muted fw-bold" id="dropCategory" name="category" readonly>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label small fw-bold text-muted">ชื่อตัวเลือก (Value) *</label>
+                        <input type="text" class="form-control fw-bold" id="dropValue" name="value" required placeholder="เช่น Facebook, ผ่าน, สัปดาห์หน้า">
+                    </div>
+                    <div class="mb-2">
+                        <div class="form-check form-switch">
+                            <input class="form-check-input" type="checkbox" id="dropIsActive" name="isActive" checked>
+                            <label class="form-check-label small fw-bold text-muted" for="dropIsActive">เปิดใช้งาน (Active)</label>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer border-top bg-light">
+                    <button type="submit" class="btn btn-primary w-100 fw-bold">บันทึกข้อมูล</button>
+                </div>
+            </form>
         </div>
     </div>
 </div>
