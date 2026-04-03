@@ -1,25 +1,53 @@
 <div class="container-fluid p-4">
     <!-- Dashboard Cards -->
-    <div class="row g-3 mb-4" id="pValueCards">
+    <div class="row g-3 mb-3" id="pValueCards">
         <!-- JS generates cards here -->
+    </div>
+
+    <!-- 🌟 TOOLBAR: Search, Filter, Date 🌟 -->
+    <div class="d-flex flex-wrap align-items-center justify-content-between gap-3 mb-4 bg-white p-3 rounded-4 shadow-sm border border-light">
+        <div class="d-flex flex-wrap align-items-center gap-3">
+            <!-- Search Box -->
+            <div class="input-group input-group-sm shadow-sm position-relative" style="max-width: 250px;">
+                <span class="input-group-text bg-white border-end-0 px-3 rounded-start-pill"><i class="fa-solid fa-search text-muted"></i></span>
+                <input type="text" id="lSearchInput" class="form-control border-start-0 ps-0 pe-4 shadow-none rounded-end-pill" placeholder="ค้นหาชื่อ, เบอร์โทร..." oninput="handleLeadsSearch(this.value)">
+                <button id="lSearchClearBtn" class="btn btn-sm text-muted d-none position-absolute end-0 top-50 translate-middle-y border-0 shadow-none" style="z-index: 5; padding-right: 12px;" onclick="clearLeadsSearch()">
+                    <i class="fa-solid fa-circle-xmark opacity-75"></i>
+                </button>
+            </div>
+            
+            <!-- Channel Filter -->
+            <div class="input-group input-group-sm shadow-sm" style="width: auto;">
+                <span class="input-group-text bg-white text-muted border-end-0 px-3 rounded-start-pill"><i class="fa-solid fa-share-nodes"></i></span>
+                <select class="form-select border-start-0 fw-bold text-primary shadow-none rounded-end-pill pe-4" id="lChannelFilter" onchange="setLeadsChannelFilter(this.value)">
+                    <option value="All" selected>ทุกช่องทาง</option>
+                </select>
+            </div>
+        </div>
+        
+        <!-- Date Filter -->
+        <div class="d-flex align-items-center gap-2">
+            <label class="form-label mb-0 fw-bold text-muted small" style="white-space: nowrap;">วันที่บันทึก:</label>
+            <div class="input-group input-group-sm shadow-sm" style="width: 280px;">
+                <span class="input-group-text bg-white text-muted border-end-0 px-3 rounded-start-pill"><i class="fa-regular fa-calendar"></i></span>
+                <input type="text" class="form-control border-start-0 border-end-0 shadow-none rounded-0" id="dateFilter" placeholder="เลือกช่วงวันที่...">
+                
+                <!-- 🌟 เพิ่มปุ่ม "วันนี้" 🌟 -->
+                <button class="btn bg-light border border-start-0 border-end-0 text-primary fw-bold shadow-none px-3" style="border-color: #e2e8f0; font-size: 0.75rem;" type="button" onclick="setLeadsDateToToday()" title="เลือกเฉพาะของวันนี้">
+                    วันนี้
+                </button>
+                
+                <button class="btn bg-white border border-start-0 text-muted shadow-none rounded-end-pill px-3" style="border-color: #e2e8f0;" type="button" onclick="clearDateFilter()" title="ล้างตัวกรอง">
+                    <i class="fa-solid fa-xmark"></i>
+                </button>
+            </div>
+        </div>
     </div>
 
     <!-- Data Table -->
     <div class="card shadow-sm border-0 mb-4 rounded-4">
-        <!-- Header ขาวๆ พร้อมช่องกรองวันที่ -->
-        <div class="card-header bg-white py-3 border-bottom d-flex justify-content-between align-items-center flex-wrap gap-3" style="border-top-left-radius: 16px; border-top-right-radius: 16px;">
+        <div class="card-header bg-white py-3 border-bottom" style="border-top-left-radius: 16px; border-top-right-radius: 16px;">
             <h5 class="mb-0 fw-bold text-dark"><i class="fa-solid fa-list-ul text-primary me-2"></i> รายชื่อผู้สมัคร</h5>
-            
-            <div class="d-flex align-items-center gap-2">
-                <label class="form-label mb-0 fw-bold text-muted small" style="white-space: nowrap;">กรองวันที่บันทึก:</label>
-                <div class="input-group input-group-sm" style="width: 260px;">
-                    <span class="input-group-text bg-white text-muted"><i class="fa-regular fa-calendar"></i></span>
-                    <input type="text" class="form-control" id="dateFilter" placeholder="เลือกช่วงวันที่...">
-                    <button class="btn btn-outline-secondary" type="button" onclick="clearDateFilter()" title="ล้างตัวกรอง">
-                        <i class="fa-solid fa-xmark"></i>
-                    </button>
-                </div>
-            </div>
         </div>
         
         <div class="card-body p-0">
@@ -66,7 +94,6 @@
                         </div>
                         <h4 class="mb-0 fw-bold text-dark" id="leadModalTitle">เพิ่มผู้สมัครใหม่</h4>
                     </div>
-
                     <button type="button" class="btn-close m-0" data-bs-dismiss="modal" aria-label="Close"></button>
                 </div>
 
@@ -76,7 +103,6 @@
                         
                         <!-- COLUMN 1: BASIC INFO -->
                         <div class="col-lg-6 col-md-12">
-                            <!-- 🌟 ปรับดีไซน์ขอบการ์ดให้ละมุนและเข้ากับธีมใหม่ -->
                             <div class="bg-white p-4 rounded-4 shadow-sm h-100 border border-light">
                                 <h6 class="fw-bold text-primary mb-4"><i class="fa-solid fa-address-card me-2"></i>1. ข้อมูลพื้นฐาน (Basic Info)</h6>
                                 
@@ -120,22 +146,23 @@
 
                         <!-- COLUMN 2: PERSONAL DETAILS -->
                         <div class="col-lg-6 col-md-12">
-                            <!-- 🌟 ปรับดีไซน์ขอบการ์ดให้ละมุนและเข้ากับธีมใหม่ -->
                             <div class="bg-white p-4 rounded-4 shadow-sm h-100 border border-light">
                                 <h6 class="fw-bold text-success mb-4"><i class="fa-solid fa-user-tag me-2"></i>2. ข้อมูลส่วนตัว (Personal Details)</h6>
                                 
                                 <div class="row mb-3">
                                     <div class="col-6">
                                         <label class="form-label fw-bold small text-muted">สถานะติดต่อ</label>
-                                        <!-- 🌟 เปลี่ยนจากตัวเลือกล็อกตายตัว เป็นการโหลดข้อมูลอัตโนมัติ 🌟 -->
-                                        <select class="form-select" name="contactStatus" id="contactStatus">
-                                            <option value="" selected>โหลดสถานะติดต่อ...</option>
+                                        <select class="form-select fw-bold" name="contactStatus" id="contactStatus" onchange="updateContactResultOptions()">
+                                            <option value="" selected>-- เลือก --</option>
+                                            <option value="ติดต่อได้">ติดต่อได้</option>
+                                            <option value="ติดต่อไม่ได้">ติดต่อไม่ได้</option>
+                                            <option value="รอติดต่อ">รอติดต่อ</option>
                                         </select>
                                     </div>
                                     <div class="col-6">
                                         <label class="form-label fw-bold small text-muted">ผลการติดต่อ</label>
-                                        <select class="form-select" name="contactResult" id="contactResultSelect">
-                                            <option value="" selected>โหลดผลการติดต่อ...</option>
+                                        <select class="form-select" name="contactResult" id="contactResultSelect" onchange="toggleDisqualifiedNote(this.value)">
+                                            <option value="" selected>-- กรุณาเลือกสถานะก่อน --</option>
                                         </select>
                                     </div>
                                 </div>
@@ -174,7 +201,6 @@
                                 <div class="mb-3">
                                     <label class="form-label fw-bold small text-muted">BeNeat Chat Link</label>
                                     <div class="input-group">
-                                        <!-- 🌟 แทนที่ไอคอน Line ด้วยโลโก้ BeNeat (Inline SVG) 🌟 -->
                                         <span class="input-group-text bg-light p-2 border-end-0">
                                             <svg width="22" height="22" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
                                                 <path d="M50 5C25.1 5 5 25.1 5 50c0 10.4 3.6 20 9.6 27.6L10 95l18.4-4.8c7 3.1 14.8 4.8 23.1 4.8 24.9 0 45-20.1 45-45S74.9 5 50 5z" fill="#3bc2d6"/>
@@ -189,20 +215,29 @@
                                     <label class="form-label fw-bold small text-muted">สถานะ Applicant</label>
                                     <div class="d-flex gap-2 p-1 bg-light rounded-3 border" style="width: fit-content;">
                                         <input type="radio" class="btn-check" name="isApplicant" id="appYes" value="มี">
-                                        <label class="btn btn-sm btn-outline-secondary border-0 fw-bold rounded-2 px-3" for="appYes">มี</label>
+                                        <label class="btn btn-sm btn-outline-success border-0 fw-bold rounded-2 px-3" for="appYes">มี</label>
                                       
                                         <input type="radio" class="btn-check" name="isApplicant" id="appNo" value="ไม่มี" checked>
-                                        <label class="btn btn-sm btn-outline-success border-0 fw-bold rounded-2 px-3" for="appNo">ไม่มี</label>
+                                        <label class="btn btn-sm btn-outline-secondary border-0 fw-bold rounded-2 px-3" for="appNo">ไม่มี</label>
                                     </div>
                                 </div>
                             </div>
                         </div>
                     </div>
 
-                    <!-- BOTTOM SECTION: NOTES -->
+                    <!-- 🌟 BOTTOM SECTION: NOTES & DISQUALIFIED 🌟 -->
                     <div class="bg-white p-4 rounded-4 shadow-sm border border-light mt-4">
                         <label class="form-label fw-bold text-dark mb-2"><i class="fa-solid fa-file-lines text-muted me-2"></i> โน้ตเบื้องต้น</label>
-                        <textarea class="form-control bg-light border-0" name="notes" id="notes" rows="3" placeholder="สรุปเนื้อหาสัมภาษณ์ หรือบันทึกเพิ่มเติม..."></textarea>
+                        <textarea class="form-control bg-light border-0 mb-3" name="notes" id="notes" rows="3" placeholder="สรุปเนื้อหาสัมภาษณ์ หรือบันทึกเพิ่มเติม..."></textarea>
+                        
+                        <!-- ช่องกรอกสาเหตุที่จะแสดงเมื่อเลือกผลการติดต่อว่าไม่ผ่านเกณฑ์ -->
+                        <div id="disqualifiedContainer" class="p-3 bg-danger bg-opacity-10 border border-danger border-opacity-25 rounded mt-3" style="display: none;">
+                            <label class="form-label fw-bold text-danger mb-2"><i class="fa-solid fa-triangle-exclamation me-1"></i> สาเหตุที่คุณสมบัติไม่ผ่านเกณฑ์ <span class="text-danger">*</span></label>
+                            <textarea class="form-control border-danger mb-2 bg-white" id="disqualifiedNote" rows="2" placeholder="ระบุสาเหตุที่ไม่ผ่านเกณฑ์ (ข้อมูลส่วนนี้จะถูกแทรกเข้าไปในช่องโน้ตอัตโนมัติ)"></textarea>
+                            
+                            <div class="small fw-bold text-muted mb-1"><i class="fa-solid fa-tags me-1"></i> แท็กด่วนสำหรับ FastReport (ดึงจากหน้าตั้งค่า):</div>
+                            <div id="disqualifiedTagsContainer" class="d-flex flex-wrap gap-1"></div>
+                        </div>
                     </div>
 
                 </div>
