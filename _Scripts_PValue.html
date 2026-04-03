@@ -39,6 +39,20 @@
     }
 
     // ==========================================
+    // 🌟 0.5 Helper: ดึงชื่อผู้รับผิดชอบ (ดึงแอดมินคนคีย์อัตโนมัติถ้าเป็น P00)
+    // ==========================================
+    function getEffectiveAssignedAdmin(lead) {
+        let a = lead.Assigned_Admin || lead.assigned_admin || lead.assignedadmin;
+        const pVal = lead.P_Value || lead.p_value || lead.pvalue;
+        
+        // ถ้าเป็น P00 และยังไม่ถูก Assign งาน -> ให้ดึงชื่อคนคีย์ (Admin ฝั่ง Leads) มาเป็นคนรับผิดชอบทันที
+        if (pVal === 'P00' && (!a || a === 'Auto / รอ Assign' || a === 'Auto' || a === 'auto' || String(a).trim() === '')) {
+            a = lead.Admin || lead.admin_email || lead.adminemail || lead.admin;
+        }
+        return a;
+    }
+
+    // ==========================================
     // ⭐ 1. ฟังก์ชันแสดงผลหน้า P-Value (Dashboard & Table)
     // ==========================================
     
@@ -80,12 +94,14 @@
             }
         }
 
+        // กรองข้อมูลให้รวมคนที่ถูกปรับเป็น 'ไม่ผ่านเกณฑ์' หรือคนที่มี P-Value ไปแล้วด้วย
         const qualifiedLeads = state.leads.filter(l => {
-            const res = l.ContactResult || l.contact_result || l.contactresult;
-            return (res === 'Add Line เรียบร้อย' || res === 'แอดไลน์แล้ว');
+            const res = l.ContactResult || l.contact_result || l.contactresult || '';
+            const pVal = l.P_Value || l.p_value || l.pvalue;
+            return (res === 'Add Line เรียบร้อย' || res === 'แอดไลน์แล้ว') || res.includes('ไม่ผ่านเกณฑ์') || (pVal && String(pVal).trim() !== '');
         });
         
-        const pCounts = { 'Total': qualifiedLeads.length, 'Waiting': 0, 'P100': 0, 'P90': 0, 'P80': 0, 'P50': 0, 'P00': 0 };
+        const pCounts = { 'Total': qualifiedLeads.length, 'Waiting': 0, 'P100': 0, 'P90': 0, 'P80': 0, 'P50': 0,'P40': 0, 'P00': 0 };
         const adminCounts = { 'Unassigned': 0 };
         
         const displayAdmins = state.admins.filter(a => !a.is_dev);
@@ -97,7 +113,9 @@
             if (pCounts[p] !== undefined) pCounts[p]++;
             else pCounts[p] = 1; 
 
-            let a = l.Assigned_Admin || l.assigned_admin || l.assignedadmin;
+            // 🌟 ดึงข้อมูลแอดมินด้วยฟังก์ชันใหม่
+            let a = getEffectiveAssignedAdmin(l);
+
             if (!a || a === 'Auto / รอ Assign' || a === 'Auto' || a === 'auto' || String(a).trim() === '') {
                 adminCounts['Unassigned']++;
             } else {
@@ -189,8 +207,9 @@
 
     function applyPValueFilters() {
         const qualifiedLeads = state.leads.filter(l => {
-            const res = l.ContactResult || l.contact_result || l.contactresult;
-            return (res === 'Add Line เรียบร้อย' || res === 'แอดไลน์แล้ว');
+            const res = l.ContactResult || l.contact_result || l.contactresult || '';
+            const pVal = l.P_Value || l.p_value || l.pvalue;
+            return (res === 'Add Line เรียบร้อย' || res === 'แอดไลน์แล้ว') || res.includes('ไม่ผ่านเกณฑ์') || (pVal && String(pVal).trim() !== '');
         });
         let filteredLeads = qualifiedLeads;
 
@@ -216,7 +235,7 @@
 
         if (state.pAdminFilter === 'Unassigned') {
             filteredLeads = filteredLeads.filter(l => {
-                const a = l.Assigned_Admin || l.assigned_admin || l.assignedadmin;
+                const a = getEffectiveAssignedAdmin(l);
                 return !a || a === 'Auto / รอ Assign' || a === 'Auto' || a === 'auto' || String(a).trim() === '';
             });
         } else if (state.pAdminFilter !== 'All') {
@@ -224,7 +243,7 @@
             const selName = selAdmin ? selAdmin.name : state.pAdminFilter;
             
             filteredLeads = filteredLeads.filter(l => {
-                const a = l.Assigned_Admin || l.assigned_admin || l.assignedadmin;
+                const a = getEffectiveAssignedAdmin(l);
                 return a === state.pAdminFilter || a === selName;
             });
         }
@@ -286,8 +305,10 @@
             const age = row.Age || row.age;
             const ageDisplay = age ? ` <span class="badge bg-light text-secondary border ms-1 fw-normal" style="font-size: 0.75rem;">อายุ ${age} ปี</span>` : '';
 
-            const adm = row.Assigned_Admin || row.assigned_admin || row.assignedadmin;
+            // 🌟 ดึงข้อมูลแอดมินด้วยฟังก์ชันใหม่ เพื่อโชว์ในตาราง
+            const adm = getEffectiveAssignedAdmin(row);
             let adminCell = '';
+            
             if (!adm || adm === 'Auto / รอ Assign' || adm === 'Auto' || adm === 'auto' || String(adm).trim() === '') {
                 adminCell = `
                     <div class="text-center" onclick="event.stopPropagation()">
@@ -315,7 +336,6 @@
             else if(bgCheckVal === 'กำลังตรวจ') bgCheckDisplay = `<span class="badge bg-warning text-dark">กำลังตรวจ</span>`;
             else if(bgCheckVal.includes('ไม่ผ่าน')) bgCheckDisplay = `<span class="badge bg-danger">ไม่ผ่าน</span>`;
 
-            // 🌟 แมปปิ้งชื่อผู้แนะนำในตารางให้สวยงาม
             const refId = row.Referrer || row.referrer;
             let referrerDisplay = `<span class="text-muted">-</span>`;
             if (refId) {
@@ -323,7 +343,7 @@
                 if (matchedRef) {
                     referrerDisplay = `<span class="text-secondary fw-bold small">${matchedRef.Ref_Name}</span>`;
                 } else {
-                    referrerDisplay = `<span class="text-secondary fw-bold small">${refId}</span>`; // เผื่อเป็นข้อความเก่าแบบเพื่อนแนะนำ
+                    referrerDisplay = `<span class="text-secondary fw-bold small">${refId}</span>`; 
                 }
             }
 
@@ -331,7 +351,12 @@
             const encodedNote = encodeURIComponent(nts);
 
             const pval = row.P_Value || row.p_value || row.pvalue;
-            const pvalDisplay = pval ? `<span class="badge bg-success">${pval}</span>` : `<span class="badge bg-warning text-dark">รอประเมิน</span>`;
+            let pvalDisplay = pval ? `<span class="badge bg-success">${pval}</span>` : `<span class="badge bg-warning text-dark">รอประเมิน</span>`;
+            
+            // เปลี่ยนสี P00 ให้เป็นสีแดง เพื่อให้เห็นชัดเจน
+            if (pval === 'P00') {
+                pvalDisplay = `<span class="badge bg-danger">${pval}</span>`;
+            }
 
             const fullName = row.FullName || row.full_name || row.fullname || '-';
             const phoneStr = row.Phone || row.phone || '-';
@@ -381,9 +406,14 @@
     // ==========================================
     async function triggerBulkAutoAssign() {
         const unassignedLeads = state.leads.filter(l => {
-            const cr = l.ContactResult || l.contact_result || l.contactresult;
-            const a = l.Assigned_Admin || l.assigned_admin || l.assignedadmin;
-            return (cr === 'Add Line เรียบร้อย' || cr === 'แอดไลน์แล้ว') && (!a || a === 'Auto / รอ Assign' || a === 'Auto' || a === 'auto' || String(a).trim() === '');
+            const cr = l.ContactResult || l.contact_result || l.contactresult || '';
+            const pVal = l.P_Value || l.p_value || l.pvalue;
+            
+            // 🌟 เช็คด้วยฟังก์ชันดึงแอดมิน เพื่อข้าม P00 ที่ถูกผูกกับคนคีย์ไปแล้ว 
+            const a = getEffectiveAssignedAdmin(l);
+            
+            const isQualified = (cr === 'Add Line เรียบร้อย' || cr === 'แอดไลน์แล้ว') || cr.includes('ไม่ผ่านเกณฑ์') || (pVal && String(pVal).trim() !== '');
+            return isQualified && (!a || a === 'Auto / รอ Assign' || a === 'Auto' || a === 'auto' || String(a).trim() === '');
         });
 
         if (unassignedLeads.length === 0) return;
