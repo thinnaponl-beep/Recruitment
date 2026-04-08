@@ -208,6 +208,7 @@
         },
 
         updateStateOptimistically(leadId, updatedInfo) {
+            // อัปเดตข้อมูลในหน่วยความจำทันที ไม่ต้องรอดึง DB ใหม่ทั้งหมด (Optimistic UI)
             const index = state.trainings.findIndex(t => (t.lead_id === leadId || t.leadid === leadId || t.Lead_ID === leadId));
             if (index > -1) {
                 state.trainings[index] = { ...state.trainings[index], ...updatedInfo };
@@ -332,13 +333,24 @@
                 }, 350));
             }
 
-            if (!trainDateFilterControl && typeof flatpickr !== 'undefined') {
+            // 🌟 แก้ไขบั๊กปฏิทินหาย (Re-initialize Flatpickr) 🌟
+            if (typeof flatpickr !== 'undefined') {
                 const el = document.getElementById('trainDateFilterInput');
                 if (el) {
+                    if (trainDateFilterControl) {
+                        trainDateFilterControl.destroy();
+                    }
+                    
+                    let defaultDates = null;
+                    if (state.trainDateRange && state.trainDateRange.start && state.trainDateRange.end) {
+                        defaultDates = [state.trainDateRange.start, state.trainDateRange.end];
+                    }
+
                     trainDateFilterControl = flatpickr(el, {
                         locale: "th",
                         mode: "range",
                         dateFormat: "d/m/Y",
+                        defaultDate: defaultDates,
                         onChange: function(selectedDates) {
                             if (selectedDates.length === 2) {
                                 const start = selectedDates[0]; start.setHours(0,0,0,0);
@@ -389,6 +401,7 @@
                 const jobType = row.JobType || row.job_type || row.jobtype || '-';
                 const pVal = row.P_Value || row.p_value || row.pvalue || '-';
                 
+                // 🌟 แมปปิ้งสี P-Value ให้ตรงกับหน้า P-Value
                 let pValBadgeClass = 'bg-secondary';
                 if (pVal === 'P100') pValBadgeClass = 'bg-success';
                 else if (pVal === 'P90') pValBadgeClass = 'bg-primary';
@@ -736,7 +749,6 @@
                 document.getElementById('newRescheduleDate').value = '';
             }
 
-            // Init Flatpickr
             if (typeof flatpickr !== 'undefined') {
                 const existingTransferDate = trainInfo.transfer_date || trainInfo.transferdate || trainInfo.TransferDate || '';
                 
@@ -898,7 +910,6 @@
     // ==========================================
     // 🔗 5. GLOBAL BINDINGS & EVENT LISTENERS
     // ==========================================
-    // เผยแพร่ฟังก์ชันให้ HTML สามารถเรียกใช้ผ่าน onclick ได้
     window.loadTrainingData = () => TrainingController.init();
     window.renderTrainingDashboard = () => TrainingController.applyFilters();
     window.setTrainFilter = (val) => TrainingController.setFilter(val);
@@ -907,7 +918,6 @@
     window.changeTrainPage = (num, event) => TrainingController.changePage(num, event);
 
     document.addEventListener('DOMContentLoaded', () => {
-        // ตรวจจับการพิมพ์เลขบัตรและจัดฟอร์แมต
         document.body.addEventListener('input', function(e) {
             if (e.target && e.target.id === 'trainIdCard') {
                 e.target.value = TrainingLogic.formatThaiID(e.target.value);
@@ -927,7 +937,6 @@
             }
         });
 
-        // จัดการ Form Submit
         const trainForm = document.getElementById('trainingForm');
         if (trainForm) {
             trainForm.addEventListener('submit', async function(e) {
@@ -935,7 +944,6 @@
                 const fd = new FormData(this);
                 const leadId = fd.get('leadId');
                 
-                // ตรวจสอบความถูกต้องของเลขบัตรประชาชน
                 const idCardRaw = (fd.get('idCard') || '').replace(/-/g, '');
                 if (idCardRaw && !TrainingLogic.validateThaiID(idCardRaw)) {
                     Swal.fire({ icon: 'error', title: 'เลขบัตรประชาชนไม่ถูกต้อง', text: 'กรุณาตรวจสอบเลขบัตรประจำตัวประชาชน 13 หลักอีกครั้ง ระบบไม่อนุญาตให้บันทึกข้อมูลที่ไม่ถูกต้องครับ' });
@@ -956,7 +964,6 @@
                 let finalTrainDate = formatDateForDB(originalDateRaw); 
                 let currentCount = parseInt(fd.get('rescheduleCount')) || 0;
 
-                // Validate การเลื่อนนัด
                 if ((newReschedDateRaw && newReschedDateRaw.trim() !== '') || isNoDate) {
                     let isOverTimeLimit = false;
                     const transferDateRaw = document.getElementById('transferDate') ? document.getElementById('transferDate').value : fd.get('transferDate');
@@ -1018,7 +1025,6 @@
                     
                     await TrainingAPI.writeLog(isNew ? 'CREATE_TRAINING' : 'UPDATE_TRAINING', 'Training', logMsg);
 
-                    // 🌟 Optimistic UI Update (ไม่ต้องยิงโหลด DB ใหม่ทั้งหมด)
                     TrainingLogic.updateStateOptimistically(leadId, updatedDBInfo);
                     TrainingController.applyFilters();
 
