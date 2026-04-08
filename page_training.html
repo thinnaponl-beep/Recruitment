@@ -29,6 +29,7 @@
                             <th class="text-center">สิทธิ์เลื่อนรอบ</th>
                             <th class="text-center">สถานะอบรม</th>
                             <th>โน้ตอบรม</th>
+                            <th>แอดมิน</th> <!-- 🌟 เพิ่มคอลัมน์ แอดมิน -->
                             <th class="text-center pe-3">จัดการ</th>
                         </tr>
                     </thead>
@@ -62,7 +63,13 @@
                         <div class="mt-2 small text-danger fw-bold" id="rescheduleWarning"></div>
                     </div>
 
-                    <!-- 🌟 เพิ่มฟิลด์เลือก แคมเปญที่ใช้จริง (Final Campaign) 🌟 -->
+                    <!-- 🌟 1. เพิ่มช่องกรอกเลขบัตรประชาชน 🌟 -->
+                    <div class="mb-3 p-3 bg-light border rounded shadow-sm">
+                        <label class="form-label fw-bold small text-dark"><i class="fa-regular fa-id-card me-1 text-primary"></i> เลขบัตรประจำตัวประชาชน <span class="text-danger">*</span></label>
+                        <input type="text" class="form-control fw-bold border-primary border-opacity-25" name="idCard" id="trainIdCard" placeholder="x-xxxx-xxxxx-xx-x" maxlength="17" required>
+                        <div class="form-text text-muted small mt-1">** ระบบจะตรวจสอบความถูกต้องของเลข 13 หลักอัตโนมัติ</div>
+                    </div>
+
                     <div class="mb-3 p-3 bg-white border rounded shadow-sm">
                         <label class="form-label fw-bold small text-primary"><i class="fa-solid fa-ranking-star me-1"></i> แคมเปญที่ใช้จริง (เพื่อเก็บสถิติ) <span class="text-danger">*</span></label>
                         <select class="form-select fw-bold" name="finalCampaign" id="trainFinalCampaign" required>
@@ -70,6 +77,7 @@
                         </select>
                         <div class="form-text text-muted small mt-1">** กรณีที่มีทั้งโค้ดโปรโมชั่นและผู้แนะนำ กรุณาเลือก 1 สิทธิ์ที่ผู้สมัครต้องการใช้จริง</div>
                     </div>
+
                     <div class="row mb-3">
                         <div class="col-6">
                             <label class="form-label fw-bold small text-muted">วันโอนจอง</label>
@@ -90,19 +98,21 @@
                     </div>
 
                     <div id="reschedContainer" class="mb-4 p-3 bg-warning bg-opacity-10 border border-warning border-opacity-25 rounded shadow-sm" style="display: none;">
-                        <label class="form-label fw-bold text-warning-emphasis mb-1"><i class="fa-solid fa-calendar-plus me-1"></i> เลื่อนนัด (วันนัดอบรมใหม่)</label>
+                        <div class="d-flex justify-content-between align-items-center mb-2">
+                            <label class="form-label fw-bold text-warning-emphasis mb-0"><i class="fa-solid fa-calendar-plus me-1"></i> เลื่อนนัดอบรม</label>
+                            <div class="form-check form-switch mb-0">
+                                <input class="form-check-input" type="checkbox" id="rescheduleNoDate" name="rescheduleNoDate">
+                                <label class="form-check-label small fw-bold text-muted" for="rescheduleNoDate" style="cursor: pointer;">ไม่ระบุวัน</label>
+                            </div>
+                        </div>
                         <input type="text" class="form-control fw-bold border-warning" name="newRescheduleDate" id="newRescheduleDate" placeholder="เลือกวันนัดใหม่...">
-                        <div class="form-text text-muted small mt-1">** หากเลือกวันที่ใหม่ ระบบจะนับสิทธิ์การเลื่อน +1 โดยอัตโนมัติ</div>
+                        <div class="form-text text-muted small mt-1">** หากเลือกวันที่ใหม่ หรือเลือกไม่ระบุวัน ระบบจะนับสิทธิ์การเลื่อน +1 ทันที</div>
                     </div>
 
                     <div class="mb-3">
                         <label class="form-label fw-bold small text-muted">สถานะการอบรม</label>
-                        <!-- 🌟 อัปเดต Dropdown ตัด ผ่าน/ไม่ผ่าน ออก เหลือแค่อบรมแล้ว -->
                         <select class="form-select fw-bold" name="status" id="trainStatus" required>
-                            <option value="รอดำเนินการ" selected>รอดำเนินการ</option>
-                            <option value="รออบรม">รออบรม</option>
-                            <option value="อบรมแล้ว">อบรมแล้ว</option>
-                            <option value="ยกเลิก/สละสิทธิ์">ยกเลิก/สละสิทธิ์</option>
+                            <option value="" disabled selected>-- โหลดสถานะ... --</option>
                         </select>
                     </div>
                     
