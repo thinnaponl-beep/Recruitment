@@ -1,0 +1,217 @@
+<div class="container-fluid p-4">
+    <!-- Header & Filters -->
+    <div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-3">
+        <div>
+            <h4 class="fw-bold text-dark mb-0"><i class="fas fa-chart-pie me-2 text-primary"></i>Recruitment Report</h4>
+            <small class="text-muted">ภาพรวมสถิติการรับสมัครและประเมินผล (Executive Summary)</small>
+        </div>
+        <div class="d-flex gap-2">
+            <!-- 📅 Date Filter Container -->
+            <div class="input-group shadow-sm" style="width: 280px;">
+                <span class="input-group-text bg-white border-end-0"><i class="far fa-calendar-alt text-primary"></i></span>
+                <input type="text" class="form-control border-start-0 ps-0 shadow-none bg-white" id="reportMonthFilter" placeholder="เลือกเดือน..." readonly style="cursor: pointer;">
+                <button class="btn btn-light border-start-0 text-muted" type="button" onclick="ReportController.clearFilter()" title="ล้างค่า">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <button class="btn btn-primary-theme shadow-sm rounded-circle" onclick="ReportController.loadData()" title="รีเฟรชข้อมูล">
+                <i class="fas fa-sync-alt"></i>
+            </button>
+        </div>
+    </div>
+
+    <!-- 🌟 Row 1: KPI Cards 🌟 -->
+    <div class="row g-3 mb-4">
+        <!-- 1. Total Leads -->
+        <div class="col-md-6 col-xl-3">
+            <div class="card border-0 shadow-sm rounded-4 h-100 p-3 position-relative overflow-hidden">
+                <div class="d-flex justify-content-between align-items-start mb-2">
+                    <div>
+                        <div class="text-muted fw-bold small text-uppercase mb-1">1. ผู้สมัครทั้งหมด (Leads)</div>
+                        <h2 class="fw-bold text-dark mb-0" id="kpi-total-leads">0</h2>
+                    </div>
+                    <div class="bg-secondary bg-opacity-10 text-secondary p-2 rounded-3 fs-4"><i class="fas fa-users"></i></div>
+                </div>
+                <div class="mt-auto">
+                    <small class="text-muted fw-bold" id="kpi-sub-total">รอดำเนินการ <span class="text-warning">0</span> เคส</small>
+                </div>
+            </div>
+        </div>
+
+        <!-- 2. Qualified (Add Line) -->
+        <div class="col-md-6 col-xl-3">
+            <div class="card border-0 shadow-sm rounded-4 h-100 p-3 position-relative overflow-hidden">
+                <div class="d-flex justify-content-between align-items-start mb-2">
+                    <div>
+                        <div class="text-muted fw-bold small text-uppercase mb-1">2. ติดต่อสำเร็จ (Qualified)</div>
+                        <h2 class="fw-bold text-info mb-0" id="kpi-qualified">0</h2>
+                    </div>
+                    <div class="bg-info bg-opacity-10 text-info p-2 rounded-3 fs-4"><i class="fab fa-line"></i></div>
+                </div>
+                <div class="mt-auto">
+                    <div class="progress" style="height: 5px;">
+                        <div class="progress-bar bg-info" id="prog-qualified" style="width: 0%"></div>
+                    </div>
+                    <small class="text-muted fw-bold mt-1 d-block" id="kpi-sub-qualified">Conversion: 0%</small>
+                </div>
+            </div>
+        </div>
+
+        <!-- 3. Passed (P100) -->
+        <div class="col-md-6 col-xl-3">
+            <div class="card border-0 shadow-sm rounded-4 h-100 p-3 position-relative overflow-hidden">
+                <div class="d-flex justify-content-between align-items-start mb-2">
+                    <div>
+                        <div class="text-muted fw-bold small text-uppercase mb-1">3. ประเมินผ่าน (P100)</div>
+                        <h2 class="fw-bold text-success mb-0" id="kpi-p100">0</h2>
+                    </div>
+                    <div class="bg-success bg-opacity-10 text-success p-2 rounded-3 fs-4"><i class="fas fa-star"></i></div>
+                </div>
+                <div class="mt-auto">
+                    <div class="progress" style="height: 5px;">
+                        <div class="progress-bar bg-success" id="prog-p100" style="width: 0%"></div>
+                    </div>
+                    <small class="text-muted fw-bold mt-1 d-block" id="kpi-sub-p100">Conversion: 0%</small>
+                </div>
+            </div>
+        </div>
+
+        <!-- 4. Trained -->
+        <div class="col-md-6 col-xl-3">
+            <div class="card border-0 shadow-sm rounded-4 h-100 p-3 position-relative overflow-hidden">
+                <div class="d-flex justify-content-between align-items-start mb-2">
+                    <div>
+                        <div class="text-muted fw-bold small text-uppercase mb-1">4. อบรมสำเร็จ (Trained)</div>
+                        <h2 class="fw-bold text-primary mb-0" id="kpi-trained">0</h2>
+                    </div>
+                    <div class="bg-primary bg-opacity-10 text-primary p-2 rounded-3 fs-4"><i class="fas fa-graduation-cap"></i></div>
+                </div>
+                <div class="mt-auto">
+                    <div class="progress" style="height: 5px;">
+                        <div class="progress-bar bg-primary" id="prog-trained" style="width: 0%"></div>
+                    </div>
+                    <small class="text-muted fw-bold mt-1 d-block" id="kpi-sub-trained">Conversion: 0%</small>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 🌟 Row 2: Funnel & Channels 🌟 -->
+    <div class="row g-4 mb-4">
+        <div class="col-lg-8">
+            <div class="card border-0 shadow-sm rounded-4 h-100 p-4">
+                <h6 class="fw-bold text-secondary mb-4"><i class="fas fa-filter me-2"></i>Recruitment Funnel (ขั้นตอนการรับสมัคร)</h6>
+                <div style="position: relative; height: 300px; width: 100%;">
+                    <canvas id="chartFunnel"></canvas>
+                </div>
+            </div>
+        </div>
+        <div class="col-lg-4">
+            <div class="card border-0 shadow-sm rounded-4 h-100 p-4">
+                <h6 class="fw-bold text-secondary mb-4"><i class="fas fa-bullhorn me-2"></i>ช่องทางการรับสมัคร</h6>
+                <div style="position: relative; height: 260px; width: 100%;">
+                    <canvas id="chartChannels"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 🌟 Row 3: P-Value & Work Type 🌟 -->
+    <div class="row g-4 mb-4">
+        <div class="col-lg-6">
+            <div class="card border-0 shadow-sm rounded-4 h-100 p-4">
+                <h6 class="fw-bold text-secondary mb-4"><i class="fas fa-chart-bar me-2"></i>คุณภาพผู้สมัคร (P-Value)</h6>
+                <div style="position: relative; height: 250px; width: 100%;">
+                    <canvas id="chartPValue"></canvas>
+                </div>
+            </div>
+        </div>
+        <div class="col-lg-6">
+            <div class="card border-0 shadow-sm rounded-4 h-100 p-4">
+                <h6 class="fw-bold text-secondary mb-4"><i class="fas fa-briefcase me-2"></i>รูปแบบงานที่สะดวกรับ</h6>
+                <div class="row align-items-center h-100">
+                    <div class="col-md-6">
+                        <div style="position: relative; height: 200px; width: 100%; cursor: pointer;">
+                            <canvas id="chartWorkType"></canvas>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div id="workTypeListContainer" style="max-height: 200px; overflow-y: auto;"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 🌟 Row 4: Admin/Recruiter Performance (รายบุคคล) 🌟 -->
+    <div class="row mb-5">
+        <div class="col-12">
+            <div class="card border-0 shadow-sm rounded-4">
+                <div class="card-header bg-white py-3 border-bottom d-flex justify-content-between align-items-center">
+                    <h6 class="fw-bold text-secondary mb-0"><i class="fas fa-users-cog me-2 text-primary"></i>ประสิทธิภาพทีมงาน (Recruiter Performance)</h6>
+                    <small class="text-muted">คำนวณจากเคสที่แอดมินเป็นคนคีย์ข้อมูลหรือได้รับมอบหมาย</small>
+                </div>
+                <div class="card-body p-0">
+                    <div class="table-responsive">
+                        <table class="table table-hover align-middle mb-0">
+                            <thead class="table-light">
+                                <tr>
+                                    <th class="ps-4">ชื่อทีมงาน (แอดมิน)</th>
+                                    <th class="text-center">เคสใหม่ (Leads)</th>
+                                    <th class="text-center">ประเมินแล้ว</th>
+                                    <th class="text-center">P100</th>
+                                    <th class="text-center pe-4">Success Rate (% P100)</th>
+                                </tr>
+                            </thead>
+                            <tbody id="tableAdminPerformance">
+                                <!-- Data populated by JS in _Scripts_Report -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ========================================================
+     MODAL: รายชื่อตามรูปแบบงาน
+     ======================================================== -->
+<div class="modal fade" id="workTypeModal" tabindex="-1">
+    <div class="modal-dialog modal-xl modal-dialog-centered modal-dialog-scrollable">
+        <div class="modal-content border-0 shadow-lg rounded-4">
+            <div class="modal-header bg-primary bg-opacity-10 border-bottom-0 pb-3">
+                <h5 class="modal-title fw-bold text-primary"><i class="fas fa-users me-2"></i>รายชื่อผู้สมัคร: <span id="wtModalLabel" class="text-dark"></span></h5>
+                <button type="button" class="btn-close shadow-none" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body p-0">
+                <div class="table-responsive">
+                    <table class="table table-hover align-middle mb-0">
+                        <thead class="table-light">
+                            <tr>
+                                <th class="ps-4 text-center">ลำดับ</th>
+                                <th>วันที่รับสมัคร</th>
+                                <th>ชื่อ-นามสกุล</th>
+                                <th>เบอร์โทร</th>
+                                <th>ช่องทางติดต่อ</th>
+                                <th>สถานะติดต่อ</th>
+                                <th class="text-center">P-Value</th>
+                            </tr>
+                        </thead>
+                        <tbody id="wtTableBody"></tbody>
+                    </table>
+                </div>
+            </div>
+            <div class="modal-footer border-top bg-light">
+                <button type="button" class="btn btn-secondary rounded-pill px-4" data-bs-dismiss="modal">ปิด</button>
+                <button type="button" class="btn btn-success fw-bold rounded-pill px-4 shadow-sm" onclick="exportWorkTypeCSV()"><i class="fas fa-file-excel me-1"></i> Export Segment</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ========================================================
+     LIBRARIES: จัดการลำดับการโหลดให้ถูกต้อง
+     ======================================================== -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.0.0"></script>
