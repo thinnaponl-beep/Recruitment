@@ -1,0 +1,474 @@
+<script>
+    /**
+     * ==========================================================
+     * 📊 RECRUITMENT REPORT CONTROLLER (Fixed Date & Admin Table)
+     * ==========================================================
+     */
+    let reportCharts = {};
+    let reportDatePickerControl = null;
+    let globalWorkTypeLeads = []; 
+    let currentWorkTypeSelection = '';
+
+    // 🌟 1. ฟังก์ชันดึงข้อมูลแยกอิสระ ป้องกัน Error (is not a function) 🌟
+    async function fetchReportDataLocal(tableName) {
+        if (!window.supabase) {
+            throw new Error("ไม่สามารถเชื่อมต่อฐานข้อมูลได้ (Supabase is missing)");
+        }
+        let allData = [];
+        let from = 0;
+        const limit = 1000;
+        let hasMore = true;
+
+        while (hasMore) {
+            const { data, error } = await window.supabase.from(tableName).select('*').range(from, from + limit - 1);
+            if (error) throw error;
+
+            if (data && data.length > 0) {
+                allData = allData.concat(data);
+                from += limit;
+                if (data.length < limit) hasMore = false;
+            } else {
+                hasMore = false;
+            }
+        }
+        return allData;
+    }
+
+    const ReportController = {
+        isLoaded: false,
+
+        async init() {
+            try {
+                // 🌟 แก้ไขปฏิทิน: ใช้โหมด Range มาตรฐาน ป้องกันบั๊กปลั๊กอินหาย 🌟
+                if (reportDatePickerControl) reportDatePickerControl.destroy();
+                
+                const el = document.getElementById('reportMonthFilter');
+                if (el && typeof flatpickr !== 'undefined') {
+                    const today = new Date();
+                    const firstDay = new Date(today.getFullYear(), today.getMonth(), 1);
+                    
+                    reportDatePickerControl = flatpickr(el, {
+                        mode: "range",
+                        dateFormat: "Y-m-d",
+                        altInput: true,
+                        altFormat: "j M Y",
+                        locale: "th",
+                        defaultDate: [firstDay, today],
+                        onChange: (selectedDates) => {
+                            // โหลดข้อมูลเมื่อเลือกครบ 2 วัน (เริ่มต้น-สิ้นสุด) หรือถูกล้างค่า
+                            if (selectedDates.length === 2 || selectedDates.length === 0) {
+                                this.loadData();
+                            }
+                        }
+                    });
+                }
+
+                if (typeof Chart !== 'undefined') {
+                    Chart.defaults.font.family = "'Sarabun', sans-serif";
+                    Chart.defaults.color = '#6c757d';
+                }
+
+                await this.loadData();
+            } catch (e) {
+                console.error("[Report Init Error]:", e);
+            }
+        },
+
+        clearFilter() {
+            if (reportDatePickerControl) reportDatePickerControl.clear();
+            this.loadData();
+        },
+
+        async loadData() {
+            // ป้องกันการทำงานหากหน้าต่างไม่ได้ถูกเปิดอยู่
+            const pageEl = document.getElementById('page-report');
+            if (pageEl && window.getComputedStyle(pageEl).display === 'none') {
+                return;
+            }
+
+            if (typeof Swal !== 'undefined') {
+                Swal.fire({ title: 'กำลังโหลดรายงาน...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
+            }
+            
+            try {
+                // ดึงค่าวันที่จาก Flatpickr (รูปแบบ YYYY-MM-DD to YYYY-MM-DD)
+                let dateVal = document.getElementById('reportMonthFilter')?.value;
+                let startDate = null, endDate = null;
+                
+                if (dateVal && dateVal.includes(' to ')) {
+                    const parts = dateVal.split(' to ');
+                    startDate = new Date(parts[0]);
+                    startDate.setHours(0, 0, 0, 0);
+                    endDate = new Date(parts[1]);
+                    endDate.setHours(23, 59, 59, 999);
+                }
+
+                const isDateInRange = (dateStr) => {
+                    if (!startDate || !endDate) return true; 
+                    if (!dateStr) return false;
+                    let dStrClean = dateStr.includes('/') ? 
+                        `${parseInt(dateStr.split('/')[2]) > 2400 ? dateStr.split('/')[2]-543 : dateStr.split('/')[2]}-${dateStr.split('/')[1]}-${dateStr.split('/')[0]}` : 
+                        dateStr.substring(0, 10);
+                    const d = new Date(dStrClean); d.setHours(0,0,0,0);
+                    return d >= startDate && d <= endDate;
+                };
+
+                // ดึงข้อมูล 2 ตารางหลัก
+                const [leadsData, trainData] = await Promise.all([
+                    fetchReportDataLocal('db_leads'),
+                    fetchReportDataLocal('db_training')
+                ]);
+
+                const filteredLeads = leadsData.filter(l => isDateInRange(l.RecordDate || l.record_date || l.recorddate));
+
+                let metrics = {
+                    funnel: { total: filteredLeads.length, contacted: 0, qualified: 0, p100: 0, trained: 0 },
+                    channels: {},
+                    pValues: { 'P100': 0, 'P90': 0, 'P80': 0, 'P50': 0, 'P40': 0, 'P00': 0, 'รอประเมิน': 0 },
+                    workTypes: {},
+                    admins: {},
+                    pendingLeads: 0
+                };
+
+                globalWorkTypeLeads = [];
+
+                filteredLeads.forEach(lead => {
+                    const leadId = lead.Lead_ID || lead.lead_id || lead.leadid;
+                    const cRes = lead.ContactResult || lead.contact_result || lead.contactresult || '';
+                    const pVal = lead.P_Value || lead.p_value || lead.pvalue || '';
+                    const channel = lead.Channel || lead.channel || 'ไม่ระบุ';
+                    const admin = lead.Admin || lead.admin_email || lead.adminemail || 'System';
+                    const workType = lead.WorkType || lead.work_type || lead.worktype || '';
+                    const trainInfo = trainData.find(t => t.lead_id === leadId || t.Lead_ID === leadId) || {};
+                    const trainStatus = trainInfo.status || trainInfo.Status || '';
+
+                    let isContacted = cRes && !['', '-', 'รอติดต่อ', 'ติดต่อไม่ได้'].includes(cRes);
+                    let isQualified = cRes.includes('Add Line') || cRes.includes('แอดไลน์');
+                    let isP100 = pVal === 'P100';
+                    let isTrained = trainStatus.includes('อบรมแล้ว');
+
+                    if (isContacted || isQualified) metrics.funnel.contacted++;
+                    if (isQualified) metrics.funnel.qualified++;
+                    if (isP100) metrics.funnel.p100++;
+                    if (isTrained) metrics.funnel.trained++;
+                    if (!cRes || ['', '-', 'รอติดต่อ'].includes(cRes)) metrics.pendingLeads++;
+
+                    metrics.channels[channel] = (metrics.channels[channel] || 0) + 1;
+                    if (pVal && metrics.pValues[pVal] !== undefined) metrics.pValues[pVal]++;
+                    else if (pVal === 'P00' || cRes.includes('ไม่ผ่านเกณฑ์')) metrics.pValues['P00']++;
+                    else if (isQualified && !pVal) metrics.pValues['รอประเมิน']++;
+
+                    if (workType && workType !== '-' && workType !== '') {
+                        metrics.workTypes[workType] = (metrics.workTypes[workType] || 0) + 1;
+                        globalWorkTypeLeads.push(lead);
+                    }
+
+                    if (!metrics.admins[admin]) metrics.admins[admin] = { total: 0, assessed: 0, p100: 0 };
+                    metrics.admins[admin].total++;
+                    if (pVal) metrics.admins[admin].assessed++;
+                    if (isP100) metrics.admins[admin].p100++;
+                });
+
+                // อัปเดตหน้าจอและวาดกราฟ
+                this.renderKPIs(metrics);
+                this.renderFunnelChart(metrics.funnel);
+                this.renderChannelChart(metrics.channels);
+                this.renderPValueChart(metrics.pValues);
+                this.renderWorkTypeChart(metrics.workTypes);
+                
+                // 🌟 เพิ่มการเรนเดอร์ตารางพนักงานตรงนี้ 🌟
+                this.renderAdminTable(metrics.admins);
+
+                if (typeof Swal !== 'undefined') Swal.close();
+            } catch (err) {
+                console.error("[Report Data Error]:", err);
+                if (typeof Swal !== 'undefined') Swal.fire('ข้อผิดพลาด', 'ไม่สามารถโหลดข้อมูลรายงานได้: ' + err.message, 'error');
+            }
+        },
+
+        renderKPIs(m) {
+            const f = m.funnel;
+            const setTxt = (id, txt) => { const el = document.getElementById(id); if (el) el.innerText = txt; };
+            const setHtml = (id, html) => { const el = document.getElementById(id); if (el) el.innerHTML = html; };
+            const setW = (id, w) => { const el = document.getElementById(id); if (el) el.style.width = w; };
+
+            setTxt('kpi-total-leads', f.total.toLocaleString());
+            setHtml('kpi-sub-total', `รอดำเนินการ <span class="text-warning">${m.pendingLeads}</span> เคส`);
+            setTxt('kpi-qualified', f.qualified.toLocaleString());
+            
+            let qP = f.total > 0 ? ((f.qualified / f.total) * 100).toFixed(1) : 0;
+            setW('prog-qualified', `${qP}%`);
+            setTxt('kpi-sub-qualified', `Conversion: ${qP}%`);
+            
+            setTxt('kpi-p100', f.p100.toLocaleString());
+            let pP = f.qualified > 0 ? ((f.p100 / f.qualified) * 100).toFixed(1) : 0;
+            setW('prog-p100', `${pP}%`);
+            setTxt('kpi-sub-p100', `Conversion: ${pP}%`);
+            
+            setTxt('kpi-trained', f.trained.toLocaleString());
+            let tP = f.p100 > 0 ? ((f.trained / f.p100) * 100).toFixed(1) : 0;
+            setW('prog-trained', `${tP}%`);
+            setTxt('kpi-sub-trained', `Conversion: ${tP}%`);
+        },
+
+        // 🌟 2. Safe Render ป้องกัน Error getContext เด็ดขาด 🌟
+        safeRenderChart(id, config) {
+            try {
+                const canvas = document.getElementById(id);
+                if (!canvas) {
+                    console.warn(`[SafeRender] ไม่พบ Element 🆔 ${id} ในหน้าจอ (ข้ามการวาดกราฟ)`);
+                    return;
+                }
+                
+                if (typeof canvas.getContext !== 'function') {
+                    console.warn(`[SafeRender] Element 🆔 ${id} ไม่รองรับการวาดกราฟ (ไม่ใช่ Canvas)`);
+                    return;
+                }
+
+                if (typeof Chart === 'undefined') {
+                    console.warn(`[SafeRender] ไลบรารี Chart.js ยังไม่พร้อมทำงาน`);
+                    return;
+                }
+
+                const ctx = canvas.getContext('2d');
+                if (!ctx) return;
+
+                if (reportCharts[id]) {
+                    reportCharts[id].destroy();
+                }
+                reportCharts[id] = new Chart(ctx, config);
+            } catch (err) {
+                console.error(`[SafeRender Error] เกิดข้อผิดพลาดขณะวาดกราฟ ${id}:`, err);
+            }
+        },
+
+        renderFunnelChart(fd) {
+            this.safeRenderChart('chartFunnel', {
+                type: 'bar',
+                data: {
+                    labels: ['1. Leads ทั้งหมด', '2. ติดต่อคุยเบื้องต้น', '3. Add Line สำเร็จ', '4. ได้เกรด P100', '5. ผ่านการอบรม'],
+                    datasets: [{
+                        label: 'คน',
+                        data: [fd.total, fd.contacted, fd.qualified, fd.p100, fd.trained],
+                        backgroundColor: ['#6c757d', '#ffc107', '#0dcaf0', '#198754', '#0d6efd'],
+                        borderRadius: 6,
+                        barPercentage: 0.6
+                    }]
+                },
+                options: { indexAxis: 'y', responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } } }
+            });
+        },
+
+        renderChannelChart(cd) {
+            const labels = Object.keys(cd).filter(k => cd[k] > 0);
+            const data = labels.map(k => cd[k]);
+            this.safeRenderChart('chartChannels', {
+                type: 'doughnut',
+                data: { labels, datasets: [{ data, backgroundColor: ['#0d6efd', '#0dcaf0', '#ffc107', '#198754', '#6f42c1', '#fd7e14', '#6c757d'] }] },
+                options: { responsive: true, maintainAspectRatio: false, cutout: '65%', plugins: { legend: { position: 'right' } } }
+            });
+        },
+
+        renderPValueChart(pd) {
+            this.safeRenderChart('chartPValue', {
+                type: 'bar',
+                data: {
+                    labels: ['P100', 'P90', 'P80', 'P50', 'P40', 'P00', 'รอประเมิน'],
+                    datasets: [{
+                        data: [pd['P100'], pd['P90'], pd['P80'], pd['P50'], pd['P40'], pd['P00'], pd['รอประเมิน']],
+                        backgroundColor: ['#198754', '#0d6efd', '#0dcaf0', '#fd7e14', '#6c757d', '#dc3545', '#ffc107'],
+                        borderRadius: 4
+                    }]
+                },
+                options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } } }
+            });
+        },
+
+        renderWorkTypeChart(wd) {
+            const labels = Object.keys(wd).filter(k => wd[k] > 0).sort((a,b) => wd[b] - wd[a]);
+            const data = labels.map(k => wd[k]);
+            const bgColors = ['#8b5cf6', '#ec4899', '#f97316', '#14b8a6', '#3b82f6', '#eab308'];
+            let total = data.reduce((a,b) => a+b, 0);
+            
+            const listContainer = document.getElementById('workTypeListContainer');
+            
+            if (labels.length === 0) {
+                if(listContainer) listContainer.innerHTML = '<div class="text-center text-muted small mt-4">ไม่มีข้อมูลรูปแบบงานในช่วงเวลานี้</div>';
+                
+                // Clear the chart if no data
+                this.safeRenderChart('chartWorkType', {
+                    type: 'doughnut',
+                    data: { labels: ['ไม่มีข้อมูล'], datasets: [{ data: [1], backgroundColor: ['#e9ecef'], borderWidth: 0 }] },
+                    options: { responsive: true, maintainAspectRatio: false, cutout: '70%', plugins: { legend: { display: false }, tooltip: { enabled: false } } }
+                });
+                return;
+            }
+
+            let listHtml = labels.map((k, i) => `
+                <div class="d-flex justify-content-between align-items-center mb-2 p-2 rounded bg-light border border-white shadow-sm" style="cursor:pointer;" onclick="openWorkTypeModal('${k}')">
+                    <div class="d-flex align-items-center">
+                        <span class="d-inline-block rounded-circle me-2" style="width: 12px; height: 12px; background-color: ${bgColors[i % bgColors.length]};"></span>
+                        <span class="small fw-bold text-dark text-truncate" style="max-width: 130px;">${k}</span>
+                    </div>
+                    <span class="badge bg-white text-dark border">${wd[k]} คน</span>
+                </div>
+            `).join('');
+
+            if(listContainer) listContainer.innerHTML = listHtml;
+
+            this.safeRenderChart('chartWorkType', {
+                type: 'doughnut',
+                data: { labels, datasets: [{ data, backgroundColor: bgColors, borderWidth: 2 }] },
+                options: {
+                    responsive: true, maintainAspectRatio: false, cutout: '70%', plugins: { legend: { display: false } },
+                    onClick: (e, elements) => {
+                        if (elements.length > 0) openWorkTypeModal(labels[elements[0].index]);
+                    }
+                }
+            });
+        },
+
+        // 🌟 3. เพิ่มฟังก์ชันเรนเดอร์ตารางพนักงาน 🌟
+        renderAdminTable(adminData) {
+            const tbody = document.getElementById('tableAdminPerformance');
+            if (!tbody) return;
+            tbody.innerHTML = '';
+
+            // Map data and resolve real names if possible
+            const adminArr = Object.keys(adminData).map(email => {
+                let name = email;
+                // ถ้ามี state.admins (โหลดมาจาก _Scripts_Core) ให้แปลงอีเมลเป็นชื่อเล่น
+                if (window.state && window.state.admins) {
+                    const matched = window.state.admins.find(a => a.email === email);
+                    if (matched && matched.name) name = matched.name;
+                }
+                return {
+                    email: email,
+                    name: name,
+                    total: adminData[email].total,
+                    assessed: adminData[email].assessed,
+                    p100: adminData[email].p100
+                };
+            });
+
+            // Sort by P100 descending
+            adminArr.sort((a, b) => b.p100 - a.p100);
+
+            if (adminArr.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="5" class="text-center py-5 text-muted"><i class="fas fa-inbox fa-2x mb-3 opacity-25"></i><br>ไม่มีข้อมูลการทำงานในช่วงเวลานี้</td></tr>';
+                return;
+            }
+
+            adminArr.forEach(a => {
+                let p100Perc = a.assessed > 0 ? ((a.p100 / a.assessed) * 100).toFixed(1) : 0;
+                let percClass = p100Perc >= 50 ? 'text-success' : (p100Perc >= 20 ? 'text-warning text-dark' : 'text-danger');
+                
+                // สุ่มสีพื้นหลัง Avatar ให้สวยงาม
+                let initial = a.name.charAt(0).toUpperCase();
+                if (!initial.match(/[a-zA-Zก-ฮ]/)) initial = "👤";
+
+                tbody.innerHTML += `
+                    <tr>
+                        <td class="ps-4 fw-bold text-dark">
+                            <div class="d-flex align-items-center">
+                                <div class="bg-primary bg-opacity-10 rounded-circle d-flex justify-content-center align-items-center me-3 text-primary shadow-sm" style="width: 36px; height: 36px;">
+                                    ${initial}
+                                </div>
+                                <div>
+                                    ${a.name}
+                                    <div class="small text-muted fw-normal" style="font-size: 0.7rem;">${a.email}</div>
+                                </div>
+                            </div>
+                        </td>
+                        <td class="text-center"><span class="badge bg-light text-dark border">${a.total}</span></td>
+                        <td class="text-center">${a.assessed}</td>
+                        <td class="text-center fw-bold text-success">${a.p100}</td>
+                        <td class="text-center pe-4 fw-bold ${percClass}">${p100Perc}%</td>
+                    </tr>
+                `;
+            });
+        }
+    };
+
+    function openWorkTypeModal(typeLabel) {
+        currentWorkTypeSelection = typeLabel;
+        const labelEl = document.getElementById('wtModalLabel');
+        if (labelEl) labelEl.textContent = typeLabel;
+
+        const filtered = globalWorkTypeLeads.filter(l => (l.WorkType || l.work_type || l.worktype) === typeLabel);
+        const tbody = document.getElementById('wtTableBody');
+        
+        if (tbody) {
+            tbody.innerHTML = filtered.map((row, index) => {
+                const pVal = row.P_Value || row.p_value || row.pvalue || 'รอประเมิน';
+                const colors = { 'P100': 'bg-success', 'P90': 'bg-primary', 'P80': 'bg-info text-dark', 'P50': 'bg-warning text-dark', 'P00': 'bg-danger' };
+                return `<tr>
+                    <td class="ps-4 text-center text-muted fw-bold">${index + 1}</td>
+                    <td class="small">${row.RecordDate || row.record_date || row.recorddate || '-'}</td>
+                    <td class="fw-bold text-dark">${row.FullName || row.full_name || row.fullname || '-'}</td>
+                    <td><i class="fas fa-phone text-success small me-1"></i>${row.Phone || row.phone || '-'}</td>
+                    <td><span class="badge bg-light text-dark border">${row.Channel || row.channel || '-'}</span></td>
+                    <td><span class="text-secondary small fw-bold">${row.ContactResult || row.contact_result || row.contactresult || 'รอติดต่อ'}</span></td>
+                    <td class="text-center"><span class="badge ${colors[pVal] || 'bg-secondary'}">${pVal}</span></td>
+                </tr>`;
+            }).join('');
+        }
+        
+        const modalEl = document.getElementById('workTypeModal');
+        if (modalEl && typeof bootstrap !== 'undefined') {
+            bootstrap.Modal.getOrCreateInstance(modalEl).show();
+        }
+    }
+
+    function exportWorkTypeCSV() {
+        const filtered = globalWorkTypeLeads.filter(l => (l.WorkType || l.work_type || l.worktype) === currentWorkTypeSelection);
+        if (filtered.length === 0) return;
+        let csv = "ลำดับ,วันที่รับสมัคร,ชื่อ-นามสกุล,เบอร์โทร,ช่องทางติดต่อ,รูปแบบงาน,สถานะติดต่อ,P-Value\n";
+        filtered.forEach((row, i) => {
+            csv += [
+                i+1, 
+                row.RecordDate || row.record_date || row.recorddate, 
+                row.FullName || row.full_name || row.fullname, 
+                row.Phone || row.phone, 
+                row.Channel || row.channel, 
+                currentWorkTypeSelection, 
+                row.ContactResult || row.contact_result || row.contactresult, 
+                row.P_Value || row.p_value || row.pvalue
+            ].map(f => `"${String(f||'').replace(/"/g, '""')}"`).join(",") + "\n";
+        });
+        const blob = new Blob(["\uFEFF" + csv], { type: 'text/csv;charset=utf-8;' });
+        const link = document.createElement("a");
+        link.href = URL.createObjectURL(blob);
+        link.download = `Segment_${currentWorkTypeSelection}_${new Date().toISOString().slice(0,10)}.csv`;
+        link.click();
+    }
+
+    // 🌟 ระบบดักจับการสลับหน้าจอ (SPA Observer) ทำงานได้อย่างเสถียร 🌟
+    document.addEventListener('DOMContentLoaded', () => {
+        const checkAndLoadReport = () => {
+            const pageEl = document.getElementById('page-report');
+            if (pageEl && window.getComputedStyle(pageEl).display !== 'none') {
+                if (!ReportController.isLoaded) {
+                    ReportController.init();
+                    ReportController.isLoaded = true;
+                } else {
+                    // หากสลับกลับมาใหม่ ให้ปรับขนาดกราฟแก้ปัญหา Canvas บี้
+                    Object.values(reportCharts).forEach(chart => {
+                        if(chart && typeof chart.resize === 'function') chart.resize();
+                    });
+                }
+            }
+        };
+
+        // ตรวจสอบทันทีตอนโหลดครั้งแรก
+        setTimeout(checkAndLoadReport, 500);
+
+        const reportPageEl = document.getElementById('page-report');
+        if (reportPageEl) {
+            const observer = new MutationObserver(() => {
+                checkAndLoadReport();
+            });
+            observer.observe(reportPageEl, { attributes: true, attributeFilter: ['style', 'class'] });
+        }
+    });
+</script>
