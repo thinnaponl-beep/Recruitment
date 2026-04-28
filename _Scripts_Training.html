@@ -25,7 +25,7 @@
             const tsStr = `${year}-${month}-${day}T${hours}:${minutes}:${seconds}`; 
 
             try {
-                const { data: sample } = await supabase.from('db_logs').select('*').limit(1);
+                const { data: sample } = await window.supabase.from('db_logs').select('*').limit(1);
                 const dbKeys = (sample && sample.length > 0) ? Object.keys(sample[0]) : [];
                 const getCol = (names) => names.find(k => dbKeys.includes(k)) || names[0];
 
@@ -39,35 +39,89 @@
                 const tsCol = getCol(['timestamp', 'Timestamp', 'created_at', 'createdat']);
                 if (dbKeys.includes(tsCol) || dbKeys.length === 0) payload[tsCol] = tsStr;
 
-                await supabase.from('db_logs').insert([payload]);
+                await window.supabase.from('db_logs').insert([payload]);
             } catch(e) { console.error("Log error:", e); }
         },
 
         async fetchAll() {
-            const { data, error } = await supabase.from('db_training').select('*');
+            const { data, error } = await window.supabase.from('db_training').select('*');
             if (error) throw error;
             return data || [];
         },
 
+        // 🌟 ฟังก์ชันสำหรับเช็คและ Auto Update สถานะลง DB 🌟
+        async autoUpdatePastTrainings(trainings) {
+            if (!window.supabase) return;
+            const today = new Date();
+            today.setHours(0,0,0,0);
+            const toUpdateIds = [];
+
+            trainings.forEach(t => {
+                let status = t.status || t.Status || '';
+                
+                if (status.includes('ยกเลิก') || status.includes('สละสิทธิ์') || status.includes('อบรมแล้ว')) return;
+
+                const tDateStr = t.train_date || t.traindate || t.TrainDate;
+                if (tDateStr) {
+                    let tDate = tDateStr.includes('/')
+                        ? new Date(tDateStr.split('/')[2], tDateStr.split('/')[1] - 1, tDateStr.split('/')[0])
+                        : new Date(tDateStr);
+
+                    if (!isNaN(tDate.getTime())) {
+                        tDate.setHours(0,0,0,0);
+                        if (tDate < today) { 
+                            toUpdateIds.push(t.lead_id || t.Lead_ID || t.leadid);
+                            t.status = 'อบรมแล้ว'; 
+                            if(t.Status !== undefined) t.Status = 'อบรมแล้ว';
+                        }
+                    }
+                }
+            });
+
+            if (toUpdateIds.length > 0) {
+                try {
+                    const sample = trainings.find(t => toUpdateIds.includes(t.lead_id || t.Lead_ID || t.leadid));
+                    const idCol = Object.keys(sample).find(k => ['lead_id', 'leadid', 'Lead_ID'].includes(k)) || 'lead_id';
+                    const statusCol = Object.keys(sample).find(k => ['status', 'Status'].includes(k)) || 'status';
+
+                    let updatePayload = {};
+                    updatePayload[statusCol] = 'อบรมแล้ว';
+
+                    const { error } = await window.supabase.from('db_training')
+                                                .update(updatePayload)
+                                                .in(idCol, toUpdateIds);
+                                                
+                    if (error) console.error("Auto-Update DB Error:", error);
+                    else console.log(`🚀 Auto-updated ${toUpdateIds.length} records to 'อบรมแล้ว' successfully.`);
+                } catch(e) {
+                    console.error("Auto-update processing failed:", e);
+                }
+            }
+        },
+
         async save(leadId, payload, isNew) {
-            const { data: sample } = await supabase.from('db_training').select('*').limit(1);
+            const { data: sample } = await window.supabase.from('db_training').select('*').limit(1);
             const dbKeys = (sample && sample.length > 0) ? Object.keys(sample[0]) : [];
             const getCol = (names) => names.find(k => dbKeys.includes(k)) || names[0];
             const idCol = getCol(['lead_id', 'leadid', 'Lead_ID']);
 
             let finalPayload = { ...payload };
 
-            // Map keys dynamically ให้ตรงกับ Database Schema
             const keyMapping = {
                 'id_card': ['id_card', 'idcard', 'ID_Card'],
                 'full_name': ['full_name', 'fullname', 'FullName'],
                 'transfer_date': ['transfer_date', 'transferdate', 'TransferDate'],
                 'train_date': ['train_date', 'traindate', 'TrainDate'],
+                'center': ['center', 'Center', 'training_center'], 
                 'amount': ['amount', 'Amount'],
                 'reschedule_count': ['reschedule_count', 'reschedulecount', 'RescheduleCount'],
                 'status': ['status', 'Status'],
                 'notes': ['notes', 'Notes'],
-                'train_id': ['train_id', 'trainid', 'Train_ID']
+                'train_id': ['train_id', 'trainid', 'Train_ID'],
+                'phone': ['phone', 'Phone'],
+                'job_type': ['job_type', 'jobtype', 'JobType'],
+                'background_check': ['background_check', 'backgroundcheck', 'BackgroundCheck'],
+                'work_type': ['work_type', 'worktype', 'WorkType']
             };
 
             let mappedPayload = {};
@@ -84,24 +138,24 @@
             }
 
             if (!isNew) {
-                const { error } = await supabase.from('db_training').update(mappedPayload).eq(idCol, leadId);
+                const { error } = await window.supabase.from('db_training').update(mappedPayload).eq(idCol, leadId);
                 if (error) throw error;
                 return mappedPayload;
             } else {
                 const trainIdCol = getCol(['train_id', 'trainid', 'Train_ID']);
                 mappedPayload[trainIdCol || 'train_id'] = "TRN-" + new Date().getTime().toString().substring(7);
-                const { error } = await supabase.from('db_training').insert([mappedPayload]);
+                const { error } = await window.supabase.from('db_training').insert([mappedPayload]);
                 if (error) throw error;
                 return mappedPayload;
             }
         },
 
         async fetchLogs(leadId) {
-            const { data: sample } = await supabase.from('db_logs').select('*').limit(1);
+            const { data: sample } = await window.supabase.from('db_logs').select('*').limit(1);
             const dbKeys = (sample && sample.length > 0) ? Object.keys(sample[0]) : [];
             const detCol = ['details', 'Details'].find(k => dbKeys.includes(k)) || 'details';
 
-            const { data, error } = await supabase.from('db_logs').select('*').ilike(detCol, `%[${leadId}]%`);
+            const { data, error } = await window.supabase.from('db_logs').select('*').ilike(detCol, `%[${leadId}]%`);
             if (error) throw error;
             return data || [];
         }
@@ -137,44 +191,40 @@
             return res.substring(0, 17);
         },
 
-        getEffectiveStatus(trainInfo, defaultStatus = 'รอเลือกวันอบรม') {
-            let status = trainInfo.status || trainInfo.Status || defaultStatus;
-            if (status === 'อบรมแล้ว (ผ่าน)' || status === 'อบรมแล้ว (ไม่ผ่าน)') status = 'อบรมแล้ว';
+        // 🌟 คำนวณสถานะให้ตรงตาม 7 การ์ดเป๊ะๆ 🌟
+        getEffectiveStatus(trainInfo, lead = {}) {
+            let status = trainInfo.status || trainInfo.Status || '';
 
-            if (!status.includes('ยกเลิก') && !status.includes('สละสิทธิ์') && status !== 'อบรมแล้ว') {
-                const tDateStr = trainInfo.train_date || trainInfo.traindate || trainInfo.TrainDate;
-                if (tDateStr) {
-                     let tDate = tDateStr.includes('/') ? new Date(tDateStr.split('/')[2], tDateStr.split('/')[1] - 1, tDateStr.split('/')[0]) : new Date(tDateStr);
-                     if (!isNaN(tDate.getTime())) {
-                         tDate.setHours(0,0,0,0);
-                         const today = new Date(); today.setHours(0,0,0,0);
-                         if (tDate < today) status = 'อบรมแล้ว';
-                     }
-                }
+            if (status.includes('อบรมแล้ว') || status.includes('ผ่าน')) return 'อบรมแล้ว';
+            if (status.includes('ยกเลิก') || status.includes('สละสิทธิ์') || status === 'ยกเลิกอบรม') return 'ยกเลิกอบรม';
+
+            const tDateStr = trainInfo.train_date || trainInfo.traindate || trainInfo.TrainDate;
+            const reschedCount = parseInt(trainInfo.reschedule_count || trainInfo.reschedulecount || trainInfo.RescheduleCount || 0);
+
+            if (!tDateStr) {
+                if (reschedCount > 0) return 'เลื่อนไม่ระบุวันอบรม';
+                return 'รอเลือกวันอบรม';
+            } else {
+                if (reschedCount > 0) return 'ระบุวันอบรม(เลื่อน)';
+                return 'รออบรม';
             }
-            return status;
         },
 
         getEligibleLeads() {
             return state.leads.filter(l => {
                 const pVal = l.P_Value || l.p_value || l.pvalue;
-                const tStat = l.TrainingStatus || l.training_status || l.trainingstatus;
-                return pVal === 'P100' || tStat === 'จองอบรม';
+                return pVal === 'P100';
             });
         },
 
         getFilteredData() {
             let filtered = this.getEligibleLeads();
-            let defaultStatus = 'รอเลือกวันอบรม';
-            if (state.initialDropdowns?.TrainingPageStatus?.length > 0) {
-                defaultStatus = state.initialDropdowns.TrainingPageStatus[0];
-            }
 
             if (state.trainFilter !== 'All') {
                 filtered = filtered.filter(l => {
                     const leadId = l.Lead_ID || l.lead_id || l.leadid;
                     const trainInfo = state.trainings.find(t => (t.lead_id === leadId || t.leadid === leadId || t.Lead_ID === leadId)) || {};
-                    return this.getEffectiveStatus(trainInfo, defaultStatus) === state.trainFilter;
+                    return this.getEffectiveStatus(trainInfo, l) === state.trainFilter;
                 });
             }
 
@@ -208,7 +258,6 @@
         },
 
         updateStateOptimistically(leadId, updatedInfo) {
-            // อัปเดตข้อมูลในหน่วยความจำทันที ไม่ต้องรอดึง DB ใหม่ทั้งหมด (Optimistic UI)
             const index = state.trainings.findIndex(t => (t.lead_id === leadId || t.leadid === leadId || t.Lead_ID === leadId));
             if (index > -1) {
                 state.trainings[index] = { ...state.trainings[index], ...updatedInfo };
@@ -233,87 +282,89 @@
         renderDashboard() {
             const eligibleLeads = TrainingLogic.getEligibleLeads();
             
-            let statusList = [];
-            if (state.initialDropdowns && state.initialDropdowns.TrainingPageStatus && state.initialDropdowns.TrainingPageStatus.length > 0) {
-                statusList = state.initialDropdowns.TrainingPageStatus;
-            } else {
-                statusList = ['รอเลือกวันอบรม', 'รออบรม', 'อบรมแล้ว', 'ยกเลิก/สละสิทธิ์'];
-            }
-
-            const tCounts = { 'Total': eligibleLeads.length };
-            statusList.forEach(s => tCounts[s] = 0);
-
-            let defaultStatus = statusList.length > 0 ? statusList[0] : 'รอเลือกวันอบรม';
+            // 🌟 นับจำนวนตาม 7 การ์ด 🌟
+            const tCounts = {
+                'All': eligibleLeads.length,
+                'รอเลือกวันอบรม': 0,
+                'รออบรม': 0,
+                'เลื่อนไม่ระบุวันอบรม': 0,
+                'ระบุวันอบรม(เลื่อน)': 0,
+                'ยกเลิกอบรม': 0,
+                'อบรมแล้ว': 0
+            };
 
             eligibleLeads.forEach(l => {
                 const leadId = l.Lead_ID || l.lead_id || l.leadid;
                 const trainInfo = state.trainings.find(t => (t.lead_id === leadId || t.leadid === leadId || t.Lead_ID === leadId)) || {};
-                let status = TrainingLogic.getEffectiveStatus(trainInfo, defaultStatus);
+                let status = TrainingLogic.getEffectiveStatus(trainInfo, l);
+                
                 if (tCounts[status] !== undefined) tCounts[status]++;
-                else tCounts[status] = 1;
+                else tCounts[status] = 1; 
             });
 
-            const getColor = (statusName) => {
-                if (statusName.includes('รออบรม') || statusName.includes('ระบุวัน')) return '#3b82f6'; 
-                if (statusName.includes('แล้ว') || statusName.includes('ผ่าน')) return '#10b981'; 
-                if (statusName.includes('ยกเลิก') || statusName.includes('สละสิทธิ์') || statusName.includes('ไม่ผ่าน')) return '#ef4444'; 
-                if (statusName.includes('รอ')) return '#f59e0b'; 
-                return '#8b5cf6'; 
-            };
-
+            // 🌟 ตั้งค่าโครงสร้าง 7 การ์ดตามภาพ 🌟
             const tConfigs = [
-                { id: 'All', label: 'ทั้งหมด', count: tCounts['Total'], color: '#64748b' }
+                { id: 'All', label: 'ทั้งหมด', count: tCounts['All'], color: '#6c757d' }, 
+                { id: 'รอเลือกวันอบรม', label: 'รอเลือกวันอบรม', count: tCounts['รอเลือกวันอบรม'], color: '#f59e0b' }, 
+                { id: 'รออบรม', label: 'รออบรม', count: tCounts['รออบรม'], color: '#0d6efd' }, 
+                { id: 'เลื่อนไม่ระบุวันอบรม', label: 'เลื่อนไม่ระบุวันอบรม', count: tCounts['เลื่อนไม่ระบุวันอบรม'], color: '#0d6efd' }, 
+                { id: 'ระบุวันอบรม(เลื่อน)', label: 'ระบุวันอบรม(เลื่อน)', count: tCounts['ระบุวันอบรม(เลื่อน)'], color: '#0d6efd' }, 
+                { id: 'ยกเลิกอบรม', label: 'ยกเลิกอบรม', count: tCounts['ยกเลิกอบรม'], color: '#dc3545' }, 
+                { id: 'อบรมแล้ว', label: 'อบรมแล้ว', count: tCounts['อบรมแล้ว'], color: '#198754' } 
             ];
 
-            statusList.forEach(s => {
-                tConfigs.push({ id: s, label: s, count: tCounts[s], color: getColor(s) });
-            });
-
-            Object.keys(tCounts).forEach(key => {
-                if (!tConfigs.find(c => c.id === key) && key !== 'Total') {
-                    tConfigs.push({ id: key, label: key, count: tCounts[key], color: getColor(key) }); 
-                }
-            });
-
-            let cardsHtml = '<div class="row row-cols-2 row-cols-md-3 row-cols-lg-5 g-2 mb-3">';
+            let cardsHtml = '<div class="d-flex flex-wrap gap-2 mb-3">';
             tConfigs.forEach(c => {
                 const isActive = state.trainFilter === c.id;
-                const activeStyle = isActive ? `box-shadow: 0 0 0 3px rgba(0,0,0,0.05); border-color: ${c.color} !important; background-color: ${c.color}15; transform: translateY(-2px);` : '';
-                const textStyle = isActive ? `color: ${c.color} !important;` : '';
+                const activeStyle = isActive 
+                    ? `background-color: #f8f9fa; border: 1px solid #adb5bd !important; border-left: 4px solid ${c.color} !important; box-shadow: none;` 
+                    : `background-color: #ffffff; border: 1px solid #eef2f5; border-left: 4px solid ${c.color} !important;`;
+                    
+                const textStyle = isActive ? `color: #495057 !important;` : `color: #6c757d;`;
+                const countStyle = isActive ? `color: #6c757d;` : `color: ${c.color};`;
+
                 cardsHtml += `
-                <div class="col">
-                    <div class="card h-100 shadow-sm border" style="cursor: pointer; transition: all 0.2s; border-left: 4px solid ${c.color} !important; ${activeStyle}" onclick="TrainingController.setFilter('${c.id}')">
-                        <div class="card-body p-2 text-center">
-                            <div class="small fw-bold text-muted mb-1" style="font-size: 0.75rem; ${textStyle}">${c.label}</div>
-                            <h4 class="mb-0 fw-bold" style="color: ${c.color};">${c.count}</h4>
+                <div style="flex: 1 1 calc(14% - 0.5rem); min-width: 140px;">
+                    <div class="card h-100 shadow-sm" style="cursor: pointer; transition: all 0.2s; border-radius: 10px; ${activeStyle}" onclick="TrainingController.setFilter('${c.id}')">
+                        <div class="card-body p-3 text-center d-flex flex-column justify-content-center">
+                            <div class="fw-bold mb-2" style="font-size: 0.75rem; ${textStyle}">${c.label}</div>
+                            <h4 class="mb-0 fw-bold" style="${countStyle}">${c.count}</h4>
                         </div>
                     </div>
                 </div>`;
             });
             cardsHtml += '</div>';
 
-            let searchHtml = `
-                <div class="input-group input-group-sm shadow-sm" style="max-width: 250px; border-radius: 20px; overflow: hidden;">
-                    <span class="input-group-text bg-white border-end-0 px-2"><i class="fa-solid fa-search text-muted"></i></span>
-                    <input type="text" id="tSearchInput" class="form-control border-start-0 ps-0 shadow-none" placeholder="ค้นหาชื่อ, เบอร์โทร, เลขบัตร..." value="${state.trainSearch}">
-                    <button id="tSearchClearBtn" class="btn btn-white border-top border-bottom border-end text-muted shadow-none" style="display: ${state.trainSearch ? 'block' : 'none'};" onclick="TrainingController.clearSearch()"><i class="fa-solid fa-xmark"></i></button>
-                </div>
-            `;
-
-            let dateHtml = `
-                <div class="d-flex align-items-center gap-2">
-                    <label class="form-label mb-0 fw-bold text-muted small" style="white-space: nowrap;">วันนัดอบรม:</label>
-                    <div class="input-group input-group-sm" style="width: 230px;">
-                        <span class="input-group-text bg-white text-muted"><i class="fa-regular fa-calendar"></i></span>
-                        <input type="text" class="form-control" id="trainDateFilterInput" placeholder="กรองวันนัดอบรม...">
-                        <button class="btn btn-outline-secondary" type="button" onclick="TrainingController.clearDateFilter()" title="ล้างตัวกรอง">
-                            <i class="fa-solid fa-xmark"></i>
-                        </button>
+            // 🌟 นำปุ่ม รอเข้าเทรน ออก และให้มีแค่ปุ่ม เพิ่มรายการ 🌟
+            let toolbarHtml = `
+            <div class="card border-0 shadow-sm mb-4">
+                <div class="card-body p-3">
+                    <div class="row g-3 align-items-end">
+                        <div class="col-md-5">
+                            <label class="form-label small text-muted fw-bold">ช่วงวันนัดอบรม</label>
+                            <div class="input-group">
+                                <span class="input-group-text bg-light border-end-0"><i class="far fa-calendar-alt text-primary"></i></span>
+                                <input type="text" class="form-control border-start-0 ps-0 shadow-none bg-white" id="trainDateFilterInput" placeholder="เลือกช่วงเวลา..." readonly>
+                                <button class="btn btn-light border-start-0 text-primary fw-bold" type="button" onclick="TrainingController.setTrainDateToToday()" title="วันนี้">วันนี้</button>
+                                <button class="btn btn-light border-start-0 text-muted" type="button" onclick="TrainingController.clearDateFilter()" title="ล้างค่า"><i class="fas fa-times"></i></button>
+                            </div>
+                        </div>
+                        <div class="col-md-5">
+                            <label class="form-label small text-muted fw-bold">ค้นหา</label>
+                            <div class="input-group">
+                                <span class="input-group-text bg-light border-end-0"><i class="fas fa-search text-muted"></i></span>
+                                <input type="text" id="tSearchInput" class="form-control border-start-0 ps-0 shadow-none" placeholder="ค้นหาชื่อ, เบอร์โทร, เลขบัตร..." value="${state.trainSearch}">
+                                <button id="tSearchClearBtn" class="btn btn-white border-top border-bottom border-end text-muted shadow-none" style="display: ${state.trainSearch ? 'block' : 'none'};" onclick="TrainingController.clearSearch()"><i class="fa-solid fa-xmark"></i></button>
+                            </div>
+                        </div>
+                        <div class="col-md-2 text-end">
+                            <button class="btn btn-primary-theme w-100 px-4 rounded-pill fw-bold shadow-sm" onclick="openAddModal()">
+                               <i class="fas fa-plus me-1"></i> เพิ่มรายการ
+                            </button>
+                        </div>
                     </div>
                 </div>
-            `;
-
-            let toolbarHtml = `<div class="d-flex flex-wrap align-items-center justify-content-between gap-3 mb-4 bg-white p-2 px-3 rounded shadow-sm border">${searchHtml}${dateHtml}</div>`;
+            </div>`;
 
             let container = document.getElementById('trainingDashboardCards');
             if (!container) {
@@ -324,47 +375,62 @@
                     tbody.closest('.card').parentNode.insertBefore(container, tbody.closest('.card'));
                 }
             }
-            if (container) container.innerHTML = cardsHtml + toolbarHtml;
+            
+            if (container) {
+                let cardsDiv = document.getElementById('tCardsDiv');
+                let toolsDiv = document.getElementById('tToolsDiv');
+                
+                if (!cardsDiv || !toolsDiv) {
+                    container.innerHTML = `<div id="tCardsDiv"></div><div id="tToolsDiv"></div>`;
+                    cardsDiv = document.getElementById('tCardsDiv');
+                    toolsDiv = document.getElementById('tToolsDiv');
+                }
+                
+                cardsDiv.innerHTML = cardsHtml;
+                
+                if (toolsDiv.innerHTML.trim() === '') {
+                    toolsDiv.innerHTML = toolbarHtml;
 
-            const searchInputEl = document.getElementById('tSearchInput');
-            if (searchInputEl) {
-                searchInputEl.addEventListener('input', TrainingLogic.debounce(function(e) {
-                    TrainingController.handleSearch(e.target.value);
-                }, 350));
-            }
-
-            // 🌟 แก้ไขบั๊กปฏิทินหาย (Re-initialize Flatpickr) 🌟
-            if (typeof flatpickr !== 'undefined') {
-                const el = document.getElementById('trainDateFilterInput');
-                if (el) {
-                    if (trainDateFilterControl) {
-                        trainDateFilterControl.destroy();
+                    const searchInputEl = document.getElementById('tSearchInput');
+                    if (searchInputEl) {
+                        searchInputEl.addEventListener('input', TrainingLogic.debounce(function(e) {
+                            TrainingController.handleSearch(e.target.value);
+                        }, 350));
                     }
-                    
-                    let defaultDates = null;
-                    if (state.trainDateRange && state.trainDateRange.start && state.trainDateRange.end) {
-                        defaultDates = [state.trainDateRange.start, state.trainDateRange.end];
-                    }
 
-                    trainDateFilterControl = flatpickr(el, {
-                        locale: "th",
-                        mode: "range",
-                        dateFormat: "d/m/Y",
-                        defaultDate: defaultDates,
-                        onChange: function(selectedDates) {
-                            if (selectedDates.length === 2) {
-                                const start = selectedDates[0]; start.setHours(0,0,0,0);
-                                const end = selectedDates[1]; end.setHours(23,59,59,999);
-                                state.trainDateRange = { start, end };
-                                state.trainCurrentPage = 1;
-                                TrainingController.applyFilters();
-                            } else if (selectedDates.length === 0) {
-                                state.trainDateRange = { start: null, end: null };
-                                state.trainCurrentPage = 1;
-                                TrainingController.applyFilters();
+                    if (typeof flatpickr !== 'undefined') {
+                        const el = document.getElementById('trainDateFilterInput');
+                        if (el) {
+                            if (trainDateFilterControl) {
+                                trainDateFilterControl.destroy();
                             }
+                            
+                            let defaultDates = null;
+                            if (state.trainDateRange && state.trainDateRange.start && state.trainDateRange.end) {
+                                defaultDates = [state.trainDateRange.start, state.trainDateRange.end];
+                            }
+
+                            trainDateFilterControl = flatpickr(el, {
+                                locale: "th",
+                                mode: "range",
+                                dateFormat: "d/m/Y",
+                                defaultDate: defaultDates,
+                                onChange: function(selectedDates) {
+                                    if (selectedDates.length === 2) {
+                                        const start = selectedDates[0]; start.setHours(0,0,0,0);
+                                        const end = selectedDates[1]; end.setHours(23,59,59,999);
+                                        state.trainDateRange = { start, end };
+                                        state.trainCurrentPage = 1;
+                                        TrainingController.applyFilters();
+                                    } else if (selectedDates.length === 0) {
+                                        state.trainDateRange = { start: null, end: null };
+                                        state.trainCurrentPage = 1;
+                                        TrainingController.applyFilters();
+                                    }
+                                }
+                            });
                         }
-                    });
+                    }
                 }
             }
         },
@@ -389,11 +455,6 @@
                 return;
             }
 
-            let defaultStatus = 'รอเลือกวันอบรม';
-            if (state.initialDropdowns?.TrainingPageStatus?.length > 0) {
-                defaultStatus = state.initialDropdowns.TrainingPageStatus[0];
-            }
-
             tbody.innerHTML = paginatedData.map((row, index) => {
                 const actualIndex = startIndex + index + 1; 
                 const leadId = row.Lead_ID || row.lead_id || row.leadid;
@@ -401,7 +462,6 @@
                 const jobType = row.JobType || row.job_type || row.jobtype || '-';
                 const pVal = row.P_Value || row.p_value || row.pvalue || '-';
                 
-                // 🌟 แมปปิ้งสี P-Value ให้ตรงกับหน้า P-Value
                 let pValBadgeClass = 'bg-secondary';
                 if (pVal === 'P100') pValBadgeClass = 'bg-success';
                 else if (pVal === 'P90') pValBadgeClass = 'bg-primary';
@@ -458,7 +518,7 @@
                     trainDate = reschedCount > 0 ? '<span class="text-warning-emphasis fw-bold"><i class="fa-solid fa-hourglass-half"></i> เลื่อน(ไม่ระบุวัน)</span>' : '<span class="text-warning fw-bold">ยังไม่ระบุ</span>';
                 }
 
-                const status = TrainingLogic.getEffectiveStatus(trainInfo, defaultStatus);
+                const status = TrainingLogic.getEffectiveStatus(trainInfo, row);
                 const notes = trainInfo.notes || trainInfo.Notes || '-';
                 const encodedNote = encodeURIComponent(notes);
 
@@ -473,11 +533,14 @@
                 if (reschedCount === 1) countBadge = `<span class="badge bg-warning text-dark">${reschedCount} / 2</span>`;
                 if (reschedCount >= 2) countBadge = `<span class="badge bg-danger">${reschedCount} / 2 (เต็ม)</span>`;
 
+                // 🌟 ปรับสี Badge ให้ตรงกับภาพ 🌟
                 let badgeBgClass = 'bg-light text-dark border';
-                if (status.includes('รออบรม') || status.includes('ระบุวัน')) badgeBgClass = 'bg-primary text-white';
-                else if (status.includes('แล้ว') || status.includes('ผ่าน')) badgeBgClass = 'bg-success text-white';
-                else if (status.includes('ยกเลิก') || status.includes('สละสิทธิ์') || status.includes('ไม่ผ่าน')) badgeBgClass = 'bg-danger text-white';
-                else if (status.includes('รอ')) badgeBgClass = 'bg-warning text-dark';
+                if (status === 'เลื่อนไม่ระบุวันอบรม') badgeBgClass = 'bg-info text-white';
+                else if (status === 'ระบุวันอบรม(เลื่อน)') badgeBgClass = 'bg-primary text-white';
+                else if (status === 'รออบรม') badgeBgClass = 'bg-primary text-white';
+                else if (status === 'อบรมแล้ว') badgeBgClass = 'bg-success text-white';
+                else if (status === 'ยกเลิกอบรม') badgeBgClass = 'bg-danger text-white';
+                else if (status === 'รอเลือกวันอบรม') badgeBgClass = 'bg-warning text-dark';
                 
                 let statusBadge = `<span class="badge ${badgeBgClass}">${status}</span>`;
 
@@ -494,7 +557,7 @@
                     <td class="fw-bold text-center text-muted">${actualIndex}</td>
                     <td class="fw-bold">${fullName}</td>
                     <td>
-                        <div class="text-nowrap"><i class="fa-solid fa-phone text-success small"></i> ${phoneStr}</div>
+                        <div class="text-nowrap"><i class="fa-solid fa-phone text-success small me-1"></i> ${phoneStr}</div>
                         ${chatLinkBtn}
                     </td>
                     <td><span class="badge bg-info text-dark">${jobType}</span></td>
@@ -574,7 +637,13 @@
     const TrainingController = {
         async init() {
             try {
+                const { data: configData } = await window.supabase.from('prs_config').select('value').eq('category', 'Onboard Centers').order('sort_order', {ascending: true});
+                state.onboardCenters = configData ? configData.map(c => c.value) : [];
+
                 const data = await TrainingAPI.fetchAll();
+
+                await TrainingAPI.autoUpdatePastTrainings(data);
+
                 state.trainings = data || [];
                 this.applyFilters();
             } catch(e) {
@@ -612,8 +681,29 @@
             this.applyFilters();
         },
 
+        setTrainDateToToday() {
+            if (trainDateFilterControl) {
+                const today = new Date();
+                trainDateFilterControl.setDate([today, today]); 
+                
+                const start = new Date(today);
+                start.setHours(0,0,0,0);
+                const end = new Date(today);
+                end.setHours(23,59,59,999);
+                
+                state.trainDateRange = { start: start, end: end };
+                state.trainCurrentPage = 1;
+                this.applyFilters();
+            }
+        },
+
         clearDateFilter() {
-            if (trainDateFilterControl) trainDateFilterControl.clear();
+            if (trainDateFilterControl) {
+                trainDateFilterControl.clear();
+            } else {
+                const dateInput = document.getElementById('trainDateFilterInput');
+                if (dateInput && dateInput._flatpickr) dateInput._flatpickr.clear();
+            }
         },
 
         changePage(pageNumber, event) {
@@ -631,7 +721,31 @@
             if (form) form.reset();
 
             document.getElementById('trainLeadId').value = leadId;
-            document.getElementById('trainLeadName').innerText = lead.FullName || lead.full_name || lead.fullname || 'Unknown';
+            
+            const leadName = lead.FullName || lead.full_name || lead.fullname || 'Unknown';
+            const leadPhone = lead.Phone || lead.phone || '-';
+            const leadJob = lead.JobType || lead.job_type || lead.jobtype || '-';
+            const leadBg = lead.BackgroundCheck || lead.background_check || lead.backgroundcheck || 'ไม่ได้ระบุ';
+            
+            document.getElementById('trainLeadName').innerHTML = `${leadName} 
+                <span class="fs-6 ms-3 text-secondary fw-normal"><i class="fa-solid fa-phone"></i> ${leadPhone}</span>
+                <span class="badge bg-info text-dark ms-2">${leadJob}</span>
+                <span class="badge bg-secondary ms-1">ตรวจประวัติ: ${leadBg}</span>`;
+
+            const trainInfo = state.trainings.find(t => (t.lead_id === leadId || t.leadid === leadId || t.Lead_ID === leadId)) || {};
+
+            const centerSel = document.getElementById('trainCenter');
+            if (centerSel) {
+                centerSel.innerHTML = '<option value="" disabled selected>-- เลือกศูนย์เทรน --</option>';
+                (state.onboardCenters || []).forEach(c => centerSel.add(new Option(c, c)));
+                
+                const existingCenter = trainInfo.center || trainInfo.Center || trainInfo.training_center || '';
+                if (existingCenter) {
+                    const exists = Array.from(centerSel.options).some(opt => opt.value === existingCenter);
+                    if (!exists) centerSel.add(new Option(existingCenter, existingCenter));
+                    centerSel.value = existingCenter;
+                }
+            }
 
             const finalCampaignSelect = document.getElementById('trainFinalCampaign');
             let hasOptions = false;
@@ -663,68 +777,42 @@
                 }
             }
 
+            const workTypeSel = document.getElementById('trainWorkType');
+            if (workTypeSel) {
+                workTypeSel.innerHTML = '<option value="" disabled selected>-- เลือกรูปแบบงาน... --</option>';
+                const workTypes = state.initialDropdowns?.WorkTypes || state.initialDropdowns?.['Work Types'] || state.initialDropdowns?.['รูปแบบงาน'] || state.initialDropdowns?.WorkType || [];
+                workTypes.forEach(wt => workTypeSel.add(new Option(wt, wt)));
+
+                const existingWorkType = trainInfo.work_type || trainInfo.WorkType || lead.WorkType || lead.work_type || lead.worktype || '';
+                if (existingWorkType) {
+                    const exists = Array.from(workTypeSel.options).some(opt => opt.value === existingWorkType);
+                    if (!exists) workTypeSel.add(new Option(existingWorkType, existingWorkType));
+                    workTypeSel.value = existingWorkType;
+                }
+            }
+
             const trainStatusSelect = document.getElementById('trainStatus');
-            if (trainStatusSelect && state.initialDropdowns?.TrainingPageStatus) {
+            if (trainStatusSelect) {
                 trainStatusSelect.innerHTML = '<option value="" disabled selected>-- โหลดสถานะ... --</option>';
-                state.initialDropdowns.TrainingPageStatus.forEach(item => {
+                
+                // ใช้ตัวเลือกตามที่การ์ดหน้าจอมี
+                const statusOptions = ['รอเลือกวันอบรม', 'รออบรม', 'เลื่อนไม่ระบุวันอบรม', 'ระบุวันอบรม(เลื่อน)', 'อบรมแล้ว', 'ยกเลิกอบรม'];
+                statusOptions.forEach(item => {
                     trainStatusSelect.add(new Option(item, item));
                 });
             }
 
-            const modalBody = document.querySelector('#trainingModal .modal-body');
-            
-            let reschedContainer = document.getElementById('reschedContainer');
-            if (!reschedContainer && modalBody) {
-                const trainDateDiv = document.getElementById('trainDate').closest('.mb-4');
-                if (trainDateDiv) {
-                    reschedContainer = document.createElement('div');
-                    reschedContainer.id = 'reschedContainer';
-                    reschedContainer.className = 'mb-4 p-3 bg-warning bg-opacity-10 border border-warning border-opacity-25 rounded shadow-sm';
-                    reschedContainer.innerHTML = `
-                        <div class="d-flex justify-content-between align-items-center mb-2">
-                            <label class="form-label fw-bold text-warning-emphasis mb-0"><i class="fa-solid fa-calendar-plus me-1"></i> เลื่อนนัดอบรม</label>
-                            <div class="form-check form-switch mb-0">
-                                <input class="form-check-input" type="checkbox" id="rescheduleNoDate" name="rescheduleNoDate">
-                                <label class="form-check-label small fw-bold text-muted" for="rescheduleNoDate" style="cursor: pointer;">ไม่ระบุวัน</label>
-                            </div>
-                        </div>
-                        <input type="text" class="form-control fw-bold border-warning" name="newRescheduleDate" id="newRescheduleDate" placeholder="เลือกวันนัดใหม่...">
-                        <div class="form-text text-muted small mt-1">** หากเลือกวันที่ใหม่ หรือเลือกไม่ระบุวัน ระบบจะนับสิทธิ์การเลื่อน +1 ทันที</div>
-                    `;
-                    trainDateDiv.parentNode.insertBefore(reschedContainer, trainDateDiv.nextSibling);
-                }
-            }
-
-            let notesContainer = document.getElementById('trainNotesContainer');
-            if (!notesContainer && modalBody) {
-                notesContainer = document.createElement('div');
-                notesContainer.id = 'trainNotesContainer';
-                notesContainer.className = 'mb-3 mt-3';
-                notesContainer.innerHTML = `
-                    <label class="form-label fw-bold small text-muted">โน้ตเพิ่มเติม / บันทึกการอบรม</label>
-                    <textarea class="form-control" name="notes" id="trainNotes" rows="3" placeholder="ระบุรายละเอียดเพิ่มเติม..."></textarea>
-                `;
-                const statusDiv = document.getElementById('trainStatus').closest('.mb-3');
-                if (statusDiv) modalBody.insertBefore(notesContainer, statusDiv);
-                else modalBody.appendChild(notesContainer);
-            }
-
-            const trainInfo = state.trainings.find(t => (t.lead_id === leadId || t.leadid === leadId || t.Lead_ID === leadId)) || {};
             const count = parseInt(trainInfo.reschedule_count || trainInfo.reschedulecount || trainInfo.RescheduleCount || 0);
-            
             document.getElementById('trainRescheduleCount').value = count;
             
             const existingTrainDateRaw = trainInfo.train_date || trainInfo.traindate || trainInfo.TrainDate || '';
-            document.getElementById('oldTrainDate').value = formatDateForDB(formatDateForDisplay(existingTrainDateRaw)) || '';
+            document.getElementById('oldTrainDate').value = window.formatDateForDB ? window.formatDateForDB(window.formatDateForDisplay ? window.formatDateForDisplay(existingTrainDateRaw) : existingTrainDateRaw) : '';
 
             document.getElementById('trainAmount').value = trainInfo.amount || trainInfo.Amount || '';
             
             if (document.getElementById('trainStatus')) {
                 let defaultStatus = 'รอเลือกวันอบรม';
-                if (state.initialDropdowns?.TrainingPageStatus?.length > 0) {
-                    defaultStatus = state.initialDropdowns.TrainingPageStatus[0];
-                }
-                const calculatedStatus = TrainingLogic.getEffectiveStatus(trainInfo, defaultStatus);
+                const calculatedStatus = TrainingLogic.getEffectiveStatus(trainInfo, lead);
                 const sel = document.getElementById('trainStatus');
                 
                 const exists = Array.from(sel.options).some(opt => opt.value === calculatedStatus);
@@ -754,42 +842,73 @@
                 
                 flatpickr("#transferDate", { 
                     locale: "th", dateFormat: "d/m/Y", 
-                    defaultDate: formatDateForDisplay(existingTransferDate) || null 
+                    defaultDate: window.formatDateForDisplay ? window.formatDateForDisplay(existingTransferDate) : null 
                 });
+
+                const noDateCheckbox = document.getElementById('trainNoDate');
+                const trainDateInput = document.getElementById('trainDate');
                 
                 const trainDatePicker = flatpickr("#trainDate", { 
                     locale: "th", dateFormat: "d/m/Y", 
-                    defaultDate: formatDateForDisplay(existingTrainDateRaw) || null 
+                    defaultDate: window.formatDateForDisplay ? window.formatDateForDisplay(existingTrainDateRaw) : null,
+                    onChange: function(selectedDates) {
+                        if (selectedDates.length > 0) {
+                            if (noDateCheckbox) noDateCheckbox.checked = false;
+                            if (trainStatusSelect && !trainStatusSelect.value.includes('อบรมแล้ว') && !trainStatusSelect.value.includes('ยกเลิก')) {
+                                trainStatusSelect.value = 'รออบรม';
+                            }
+                        }
+                    }
                 });
 
-                const reschedDatePicker = flatpickr("#newRescheduleDate", { 
-                    locale: "th", dateFormat: "d/m/Y"
-                });
+                if (noDateCheckbox) {
+                    noDateCheckbox.checked = !existingTrainDateRaw && count === 0;
+                    if (noDateCheckbox.checked) trainDateInput.disabled = true;
 
-                const noDateCheckbox = document.getElementById('rescheduleNoDate');
-                const reschedInput = document.getElementById('newRescheduleDate');
-                if (noDateCheckbox && reschedInput) {
-                    noDateCheckbox.checked = false;
-                    reschedInput.disabled = false;
-                    
                     noDateCheckbox.onchange = function() {
                         if (this.checked) {
-                            reschedInput.disabled = true;
-                            reschedInput.value = '';
-                            reschedDatePicker.clear();
+                            trainDateInput.disabled = true;
+                            trainDatePicker.clear();
+                            if (trainStatusSelect && !trainStatusSelect.value.includes('อบรมแล้ว') && !trainStatusSelect.value.includes('ยกเลิก')) {
+                                trainStatusSelect.value = 'รอเลือกวันอบรม';
+                            }
                         } else {
-                            reschedInput.disabled = false;
+                            trainDateInput.disabled = false;
                         }
                     };
                 }
 
-                if (finalCampaignSelect) {
-                    const existingFinal = trainInfo.final_campaign || trainInfo.finalcampaign || trainInfo.FinalCampaign;
-                    if (existingFinal) {
-                        finalCampaignSelect.value = existingFinal;
-                    } else if (!hasOptions) {
-                        finalCampaignSelect.value = 'Organic';
+                const reschedNoDateCheckbox = document.getElementById('rescheduleNoDate');
+                const reschedInput = document.getElementById('newRescheduleDate');
+
+                const reschedDatePicker = flatpickr("#newRescheduleDate", { 
+                    locale: "th", dateFormat: "d/m/Y",
+                    onChange: function(selectedDates) {
+                        if (selectedDates.length > 0) {
+                            if (reschedNoDateCheckbox) reschedNoDateCheckbox.checked = false;
+                            if (trainStatusSelect && !trainStatusSelect.value.includes('อบรมแล้ว') && !trainStatusSelect.value.includes('ยกเลิก')) {
+                                trainStatusSelect.value = 'ระบุวันอบรม(เลื่อน)';
+                            }
+                        }
                     }
+                });
+
+                if (reschedNoDateCheckbox && reschedInput) {
+                    reschedNoDateCheckbox.checked = !existingTrainDateRaw && count > 0;
+                    reschedInput.disabled = reschedNoDateCheckbox.checked;
+                    
+                    reschedNoDateCheckbox.onchange = function() {
+                        if (this.checked) {
+                            reschedInput.disabled = true;
+                            reschedInput.value = '';
+                            reschedDatePicker.clear();
+                            if (trainStatusSelect && !trainStatusSelect.value.includes('อบรมแล้ว') && !trainStatusSelect.value.includes('ยกเลิก')) {
+                                trainStatusSelect.value = 'เลื่อนไม่ระบุวันอบรม';
+                            }
+                        } else {
+                            reschedInput.disabled = false;
+                        }
+                    };
                 }
 
                 let deadlineMsg = '';
@@ -798,7 +917,7 @@
                 if (existingTransferDate) {
                     const limitDate = new Date(existingTransferDate);
                     limitDate.setDate(limitDate.getDate() + TrainingLogic.RESCHEDULE_LIMIT_DAYS);
-                    deadlineMsg = `<br><i class="fa-solid fa-circle-info mt-1"></i> เลื่อนได้ถึง: <strong>${formatDateForDisplay(limitDate.toISOString())}</strong>`;
+                    deadlineMsg = `<br><i class="fa-solid fa-circle-info mt-1"></i> เลื่อนได้ถึง: <strong>${window.formatDateForDisplay ? window.formatDateForDisplay(limitDate.toISOString()) : limitDate.toLocaleDateString('th-TH')}</strong>`;
                     if (new Date() > limitDate) isExpired = true;
                 }
 
@@ -809,6 +928,10 @@
                 if (existingTrainDateRaw || count > 0) {
                     trainDatePicker.set('clickOpens', false);
                     originalDateInput.classList.add('bg-light', 'text-muted');
+                    if (noDateCheckbox) {
+                        noDateCheckbox.disabled = true; 
+                        noDateCheckbox.checked = false;
+                    }
                     
                     if (reschedContainerEl) {
                         reschedContainerEl.style.display = 'block';
@@ -817,16 +940,17 @@
                             let reasonText = count >= 2 ? `เลื่อนรอบอบรมครบ 2 ครั้งแล้ว` : `หมดเขตเลื่อนรอบ (เกิน ${TrainingLogic.RESCHEDULE_LIMIT_DAYS} วัน)`;
                             warnEl.innerHTML = `<i class="fa-solid fa-triangle-exclamation text-danger"></i> ผู้สมัครรายนี้${reasonText} (หากต้องการอนุโลมให้เลื่อนต่อ ต้องระบุเหตุผลในโน้ต) <span class="text-secondary">${deadlineMsg}</span>`;
                             reschedDatePicker.set('clickOpens', true);
-                            if(noDateCheckbox) noDateCheckbox.disabled = false;
+                            if(reschedNoDateCheckbox) reschedNoDateCheckbox.disabled = false;
                         } else {
                             warnEl.innerHTML = `ประวัติการเลื่อนรอบ: ${count} / 2 ครั้ง <span class="text-secondary">${deadlineMsg}</span>`;
                             reschedDatePicker.set('clickOpens', true);
-                            if(noDateCheckbox) noDateCheckbox.disabled = false;
+                            if(reschedNoDateCheckbox) reschedNoDateCheckbox.disabled = false;
                         }
                     }
                 } else {
                     trainDatePicker.set('clickOpens', true);
                     originalDateInput.classList.remove('bg-light', 'text-muted');
+                    if (noDateCheckbox) noDateCheckbox.disabled = false;
                     if (reschedContainerEl) reschedContainerEl.style.display = 'none';
                     warnEl.innerHTML = `ประวัติการเลื่อนรอบ: ${count} / 2 ครั้ง`;
                 }
@@ -916,6 +1040,7 @@
     window.clearTrainSearch = () => TrainingController.clearSearch();
     window.clearTrainDateFilter = () => TrainingController.clearDateFilter();
     window.changeTrainPage = (num, event) => TrainingController.changePage(num, event);
+    window.openAddModal = () => TrainingController.openModal();
 
     document.addEventListener('DOMContentLoaded', () => {
         document.body.addEventListener('input', function(e) {
@@ -958,25 +1083,29 @@
                 
                 const originalDateRaw = document.getElementById('trainDate') ? document.getElementById('trainDate').value : fd.get('trainDate'); 
                 const newReschedDateRaw = document.getElementById('newRescheduleDate') ? document.getElementById('newRescheduleDate').value : fd.get('newRescheduleDate'); 
-                const isNoDate = document.getElementById('rescheduleNoDate') ? document.getElementById('rescheduleNoDate').checked : false; 
+                
+                const isNoDate = document.getElementById('trainNoDate') ? document.getElementById('trainNoDate').checked : false; 
+                const isReschedNoDate = document.getElementById('rescheduleNoDate') ? document.getElementById('rescheduleNoDate').checked : false; 
                 
                 const notesVal = document.getElementById('trainNotes') ? document.getElementById('trainNotes').value : (fd.get('notes') || '');
-                let finalTrainDate = formatDateForDB(originalDateRaw); 
+                let finalTrainDate = window.formatDateForDB ? window.formatDateForDB(originalDateRaw) : originalDateRaw; 
                 let currentCount = parseInt(fd.get('rescheduleCount')) || 0;
 
-                if ((newReschedDateRaw && newReschedDateRaw.trim() !== '') || isNoDate) {
+                if (isNoDate) finalTrainDate = null;
+
+                if ((newReschedDateRaw && newReschedDateRaw.trim() !== '') || isReschedNoDate) {
                     let isOverTimeLimit = false;
                     const transferDateRaw = document.getElementById('transferDate') ? document.getElementById('transferDate').value : fd.get('transferDate');
-                    const transferDateDB = formatDateForDB(transferDateRaw);
+                    const transferDateDB = window.formatDateForDB ? window.formatDateForDB(transferDateRaw) : transferDateRaw;
                     
                     if (transferDateDB) {
                         const limitDate = new Date(transferDateDB);
                         limitDate.setDate(limitDate.getDate() + TrainingLogic.RESCHEDULE_LIMIT_DAYS);
                         
-                        if (isNoDate) {
+                        if (isReschedNoDate) {
                             if (new Date() > limitDate) isOverTimeLimit = true;
                         } else {
-                            const selectedNewDate = new Date(formatDateForDB(newReschedDateRaw));
+                            const selectedNewDate = new Date(window.formatDateForDB ? window.formatDateForDB(newReschedDateRaw) : newReschedDateRaw);
                             if (selectedNewDate > limitDate) isOverTimeLimit = true;
                         }
                     }
@@ -992,10 +1121,10 @@
                         }
                     }
 
-                    if (isNoDate) {
+                    if (isReschedNoDate) {
                         finalTrainDate = null; 
                     } else {
-                        finalTrainDate = formatDateForDB(newReschedDateRaw);
+                        finalTrainDate = window.formatDateForDB ? window.formatDateForDB(newReschedDateRaw) : newReschedDateRaw;
                     }
                     currentCount += 1; 
                 }
@@ -1005,23 +1134,62 @@
                 try {
                     const finalCampVal = document.getElementById('trainFinalCampaign') ? document.getElementById('trainFinalCampaign').value : (fd.get('finalCampaign') || '');
                     
+                    const lead = state.leads.find(l => l.Lead_ID === leadId || l.lead_id === leadId || l.leadid === leadId);
+                    const leadName = lead ? (lead.FullName || lead.full_name || lead.fullname || '') : document.getElementById('trainLeadName').innerText;
+
+                    // 🌟 1. บันทึกเข้าตาราง db_training 🌟
                     const payload = {
                         id_card: idCardRaw,
-                        full_name: document.getElementById('trainLeadName').innerText,
-                        transfer_date: formatDateForDB(fd.get('transferDate')),
+                        full_name: leadName,
+                        phone: lead ? (lead.Phone || lead.phone || '') : '',
+                        job_type: lead ? (lead.JobType || lead.job_type || lead.jobtype || '') : '',
+                        background_check: lead ? (lead.BackgroundCheck || lead.background_check || lead.backgroundcheck || '') : '',
+                        transfer_date: window.formatDateForDB ? window.formatDateForDB(fd.get('transferDate')) : fd.get('transferDate'),
                         train_date: finalTrainDate,
+                        center: fd.get('center'), 
                         amount: fd.get('amount') ? parseFloat(fd.get('amount')) : null,
                         reschedule_count: currentCount,
                         status: fd.get('status'),
                         notes: notesVal,
-                        final_campaign: finalCampVal
+                        final_campaign: finalCampVal,
+                        work_type: fd.get('workType') || '' 
                     };
 
                     const isNew = !state.trainings.find(t => (t.lead_id === leadId || t.leadid === leadId || t.Lead_ID === leadId));
                     const updatedDBInfo = await TrainingAPI.save(leadId, payload, isNew);
+
+                    // 🌟 2. อัปเดตข้อมูล Work Type กลับไปที่ db_leads เพื่อให้แสดงในหน้ารายงานได้อย่างปลอดภัย 🌟
+                    const workTypeVal = fd.get('workType');
+                    if (workTypeVal) {
+                        try {
+                            const { data: sampleLeads } = await window.supabase.from('db_leads').select('*').limit(1);
+                            const leadsKeys = (sampleLeads && sampleLeads.length > 0) ? Object.keys(sampleLeads[0]) : [];
+                            
+                            const wtCol = leadsKeys.find(k => ['work_type', 'worktype', 'WorkType'].includes(k));
+                            const idLCol = leadsKeys.find(k => ['leadid', 'lead_id', 'Lead_ID'].includes(k)) || 'lead_id';
+                            
+                            if (wtCol) {
+                                let leadPayload = {};
+                                leadPayload[wtCol] = workTypeVal;
+                                
+                                const { error: updateErr } = await window.supabase.from('db_leads').update(leadPayload).eq(idLCol, leadId);
+                                if (updateErr) console.warn("Update Lead WorkType Error:", updateErr);
+                                
+                                if (lead) {
+                                    lead.WorkType = workTypeVal;
+                                    lead.work_type = workTypeVal;
+                                }
+                            } else {
+                                console.warn("⚠️ ไม่พบคอลัมน์ Work Type ในตาราง db_leads (บันทึกเฉพาะใน db_training)");
+                            }
+                        } catch (err) {
+                            console.error("Failed to update Work Type in db_leads:", err);
+                        }
+                    }
                     
-                    let displayTrainDate = finalTrainDate ? formatDateForDisplay(finalTrainDate) : (isNoDate ? 'เลื่อน (ไม่ระบุวัน)' : '-');
-                    const logMsg = `[${leadId}] สถานะ: ${payload.status} | นัด: ${displayTrainDate} | เลื่อน: ${payload.reschedule_count}/2 | ใช้สิทธิ์: ${payload.final_campaign} | Note: ${payload.notes}`;
+                    let displayTrainDate = finalTrainDate ? (window.formatDateForDisplay ? window.formatDateForDisplay(finalTrainDate) : finalTrainDate) : ((isNoDate || isReschedNoDate) ? 'ไม่ระบุวัน' : '-');
+                    let centerDisplay = payload.center ? ` | ศูนย์: ${payload.center}` : '';
+                    const logMsg = `[${leadId}] สถานะ: ${payload.status} | นัด: ${displayTrainDate}${centerDisplay} | เลื่อน: ${payload.reschedule_count}/2 | ใช้สิทธิ์: ${payload.final_campaign} | Note: ${payload.notes}`;
                     
                     await TrainingAPI.writeLog(isNew ? 'CREATE_TRAINING' : 'UPDATE_TRAINING', 'Training', logMsg);
 
