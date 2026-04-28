@@ -29,7 +29,7 @@
                             <th class="text-center">สิทธิ์เลื่อนรอบ</th>
                             <th class="text-center">สถานะอบรม</th>
                             <th>โน้ตอบรม</th>
-                            <th>แอดมิน</th> <!-- 🌟 เพิ่มคอลัมน์ แอดมิน -->
+                            <th>แอดมิน</th>
                             <th class="text-center pe-3">จัดการ</th>
                         </tr>
                     </thead>
@@ -78,6 +78,14 @@
                         <div class="form-text text-muted small mt-1">** กรณีที่มีทั้งโค้ดโปรโมชั่นและผู้แนะนำ กรุณาเลือก 1 สิทธิ์ที่ผู้สมัครต้องการใช้จริง</div>
                     </div>
 
+                    <!-- 🌟 เพิ่มช่องรูปแบบงานที่ย้ายมาจากหน้า Leads 🌟 -->
+                    <div class="mb-3 p-3 bg-white border rounded shadow-sm">
+                        <label class="form-label fw-bold small text-primary"><i class="fa-solid fa-briefcase me-1"></i> ท่านสะดวกรับงานในรูปแบบใด? <span class="text-danger">*</span></label>
+                        <select class="form-select fw-bold border-primary-subtle" name="workType" id="trainWorkType" required>
+                            <option value="" disabled selected>-- เลือกรูปแบบงาน... --</option>
+                        </select>
+                    </div>
+
                     <div class="row mb-3">
                         <div class="col-6">
                             <label class="form-label fw-bold small text-muted">วันโอนจอง</label>
@@ -92,9 +100,26 @@
                         </div>
                     </div>
 
-                    <div class="mb-4 p-3 bg-success bg-opacity-10 border border-success border-opacity-25 rounded">
-                        <label class="form-label fw-bold text-success mb-1"><i class="fa-regular fa-calendar-check me-1"></i> วันนัดอบรม</label>
-                        <input type="text" class="form-control fw-bold" name="trainDate" id="trainDate" placeholder="เลือกวันที่นัดอบรม...">
+                    <!-- 🌟 อัปเดต: เพิ่มการเลือกศูนย์เทรน คู่กับ วันนัดอบรม พร้อม Toggle ไม่ระบุวัน 🌟 -->
+                    <div class="mb-4 p-3 bg-success bg-opacity-10 border border-success border-opacity-25 rounded shadow-sm">
+                        <div class="row g-3">
+                            <div class="col-md-6">
+                                <label class="form-label fw-bold text-success mb-1"><i class="fa-regular fa-building me-1"></i> ศูนย์เทรน <span class="text-danger">*</span></label>
+                                <select class="form-select fw-bold border-success border-opacity-50" name="center" id="trainCenter" required>
+                                    <option value="" disabled selected>-- โหลดข้อมูลศูนย์... --</option>
+                                </select>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="d-flex justify-content-between align-items-center mb-1">
+                                    <label class="form-label fw-bold text-success mb-0"><i class="fa-regular fa-calendar-check me-1"></i> วันนัดอบรม</label>
+                                    <div class="form-check form-switch mb-0">
+                                        <input class="form-check-input border-success" type="checkbox" id="trainNoDate" name="trainNoDate">
+                                        <label class="form-check-label small fw-bold text-success" for="trainNoDate" style="cursor: pointer;">ไม่ระบุวัน</label>
+                                    </div>
+                                </div>
+                                <input type="text" class="form-control fw-bold border-success border-opacity-50" name="trainDate" id="trainDate" placeholder="เลือกวันที่นัดอบรม...">
+                            </div>
+                        </div>
                     </div>
 
                     <div id="reschedContainer" class="mb-4 p-3 bg-warning bg-opacity-10 border border-warning border-opacity-25 rounded shadow-sm" style="display: none;">
