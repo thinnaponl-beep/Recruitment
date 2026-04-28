@@ -151,7 +151,6 @@
     // 📋 2. จัดการ Dropdowns (Dropdown Settings)
     // ==========================================
     
-    // 🌟 แก้ไข: นำคำว่า let ออกเพื่อป้องกัน Error Identifier 'currentConfigCat' has already been declared 🌟
     currentConfigCat = 'Channel';
 
     function loadSettingsDropdowns() {
@@ -243,15 +242,12 @@
             cancelButtonText: 'ยกเลิก (Cancel)'
         });
 
-        // 🌟 แก้ปัญหาบันทึกแล้วไม่โชว์: ให้รอโหลดข้อมูลจากเซิร์ฟเวอร์เสร็จสิ้นจริงๆ แล้วค่อยอัปเดตหน้าจอ 🌟
         if (newValue && newValue.trim() !== '') {
             Swal.fire({ title: 'กำลังบันทึก...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
             try {
-                // 1. ดึงโครงสร้างคอลัมน์เพื่อป้องกันปัญหาชื่อคอลัมน์ไม่ตรง
                 const { data: sample } = await supabase.from('config_dropdowns').select('*').limit(1);
                 const dbKeys = (sample && sample.length > 0) ? Object.keys(sample[0]) : [];
                 
-                // ถ้าระบบยังไม่มีคอลัมน์เลย จะใช้ชื่อ Default
                 const catCol = dbKeys.find(k => ['category', 'Category'].includes(k)) || 'category';
                 const valCol = dbKeys.find(k => ['value', 'Value', 'item_value'].includes(k)) || 'value';
                 const actCol = dbKeys.find(k => ['is_active', 'IsActive', 'isactive'].includes(k)) || 'is_active';
@@ -262,7 +258,16 @@
                 payload[valCol] = newValue.trim();
                 payload[actCol] = true;
 
-                // 2. หาค่าลำดับสูงสุด (Sort Order) ของหมวดหมู่นี้
+                // 🌟 ป้องกัน Error Data Type ในฐานข้อมูลโดยส่งตัวเลข (Timestamp) เป็น ID 🌟
+                // เนื่องจากผู้ใช้บางท่านสร้างคอลัมน์ "id" แบบ Not-Null แต่ไม่ได้ตั้ง Auto-increment ไว้
+                if (dbKeys.includes('id')) {
+                    payload['id'] = Date.now();
+                } else if (dbKeys.includes('config_id')) {
+                    payload['config_id'] = Date.now();
+                } else {
+                    payload['id'] = Date.now(); // ป้องกันกรณีที่ซ่อนคอลัมน์ id ไว้
+                }
+
                 const { data: existing } = await supabase.from('config_dropdowns').select(sortCol).eq(catCol, currentConfigCat);
                 let maxOrder = 0;
                 if (existing && existing.length > 0) {
@@ -270,11 +275,17 @@
                 }
                 payload[sortCol] = maxOrder + 1;
 
-                // 3. บันทึกข้อมูลลงฐานข้อมูล
-                const { error } = await supabase.from('config_dropdowns').insert([payload]);
-                if (error) throw error;
+                let { error } = await supabase.from('config_dropdowns').insert([payload]);
+                
+                // 🌟 Fallback: หากฐานข้อมูลตั้ง id เป็นชนิด UUID ระบบจะตรวจจับและเปลี่ยนเป็น UUID 🌟
+                if (error && error.message && error.message.includes('uuid')) {
+                    payload['id'] = crypto.randomUUID();
+                    const retry = await supabase.from('config_dropdowns').insert([payload]);
+                    if (retry.error) throw retry.error;
+                } else if (error) {
+                    throw error;
+                }
 
-                // 4. โหลดข้อมูลใหม่เพื่อให้อัปเดตทั้งในหน้าจอ Settings และ Dropdown ของฟอร์ม
                 await loadInitialDataFromSupabase(); 
                 await renderDropdownSortableList(); 
                 
