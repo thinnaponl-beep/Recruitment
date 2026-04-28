@@ -6,6 +6,7 @@
         const userEmail = state.currentUser?.email || 'System';
         const logId = "LOG-" + new Date().getTime(); 
         
+        // จัดการเวลาให้เป็น Local Time (เวลาไทย)
         const now = new Date();
         const year = now.getFullYear();
         const month = String(now.getMonth() + 1).padStart(2, '0');
@@ -65,35 +66,13 @@
         state.pSearch = '';
     }
 
+    // 🌟 State สำหรับ Pagination หน้า P-Value
+    if (typeof state.pValueCurrentPage === 'undefined') state.pValueCurrentPage = 1;
+    const PVALUE_ITEMS_PER_PAGE = 50;
+
     let pValueDateFilterControl = null;
 
     function renderPValueDashboard() {
-        if (!pValueDateFilterControl && typeof flatpickr !== 'undefined') {
-            const pFilterEl = document.getElementById('pValueDateFilter');
-            if (pFilterEl) {
-                pValueDateFilterControl = flatpickr(pFilterEl, {
-                    locale: "th",
-                    mode: "range",
-                    dateFormat: "d/m/Y",
-                    placeholder: "เลือกช่วงวันที่...",
-                    onChange: function(selectedDates) {
-                        if (selectedDates.length === 2) {
-                            const start = selectedDates[0];
-                            start.setHours(0,0,0,0); 
-                            const end = selectedDates[1];
-                            end.setHours(23,59,59,999); 
-                            
-                            state.pValDateRange = { start: start, end: end };
-                            applyPValueFilters(); 
-                        } else if (selectedDates.length === 0) {
-                            state.pValDateRange = { start: null, end: null };
-                            applyPValueFilters();
-                        }
-                    }
-                });
-            }
-        }
-
         // กรองข้อมูลให้รวมคนที่ถูกปรับเป็น 'ไม่ผ่านเกณฑ์' หรือคนที่มี P-Value ไปแล้วด้วย
         const qualifiedLeads = state.leads.filter(l => {
             const res = l.ContactResult || l.contact_result || l.contactresult || '';
@@ -113,7 +92,7 @@
             if (pCounts[p] !== undefined) pCounts[p]++;
             else pCounts[p] = 1; 
 
-            // 🌟 ดึงข้อมูลแอดมินด้วยฟังก์ชันใหม่
+            // ดึงข้อมูลแอดมินด้วยฟังก์ชันใหม่
             let a = getEffectiveAssignedAdmin(l);
 
             if (!a || a === 'Auto / รอ Assign' || a === 'Auto' || a === 'auto' || String(a).trim() === '') {
@@ -125,18 +104,21 @@
             }
         });
 
+        // 🌟 ปรับลด Total Count ไม่ให้นับรวม P00
+        pCounts['Total'] = pCounts['Total'] - (pCounts['P00'] || 0);
+
         const pConfigs = [
-            { id: 'All', label: 'ทั้งหมด', count: pCounts['Total'], color: '#64748b' }, 
+            { id: 'All', label: 'ทั้งหมด (ยกเว้น P00)', count: pCounts['Total'], color: '#64748b' }, 
             { id: 'Waiting', label: 'รอประเมิน', count: pCounts['Waiting'], color: '#f59e0b' }, 
             { id: 'P100', label: 'P100 (ผ่าน/จอง)', count: pCounts['P100'], color: '#10b981' }, 
             { id: 'P90', label: 'P90 (รอโอนจอง)', count: pCounts['P90'], color: '#3b82f6' }, 
-            { id: 'P80', label: 'P80 (สนใจ รอแจ้งวันอบรม)', count: pCounts['P80'], color: '#8b5cf6' }, 
+            { id: 'P80', label: 'P80 (สนใจ รอแจ้งวัน)', count: pCounts['P80'], color: '#8b5cf6' }, 
             { id: 'P50', label: 'P50 (รอตัดสินใจ)', count: pCounts['P50'], color: '#f97316' }, 
             { id: 'P40', label: 'P40 (ติดต่อไม่ได้)', count: pCounts['P40'], color: '#a69586' },
-            { id: 'P00', label: 'P00 (ไม่ผ่าน)', count: pCounts['P00'], color: '#ef4444' } 
+            { id: 'P00', label: 'P00 (ไม่ผ่านเกณฑ์)', count: pCounts['P00'], color: '#ef4444' } 
         ];
 
-        let pCardsHtml = '<div class="row row-cols-2 row-cols-md-4 row-cols-lg-7 g-2 mb-3">';
+        let pCardsHtml = '<div class="row row-cols-2 row-cols-md-4 row-cols-lg-8 g-2 mb-4">';
         pConfigs.forEach(c => {
             const isActive = state.pValFilter === c.id;
             const activeStyle = isActive ? `box-shadow: 0 0 0 3px rgba(0,0,0,0.05); border-color: ${c.color} !important; background-color: ${c.color}15; transform: translateY(-2px);` : '';
@@ -146,7 +128,7 @@
             <div class="col">
                 <div class="card h-100 shadow-sm border" style="cursor: pointer; transition: all 0.2s; border-left: 4px solid ${c.color} !important; ${activeStyle}" onclick="setPValueFilter('${c.id}')">
                     <div class="card-body p-2 text-center">
-                        <div class="small fw-bold text-muted mb-1" style="font-size: 0.75rem; ${textStyle}">${c.label}</div>
+                        <div class="small fw-bold text-muted mb-1" style="font-size: 0.7rem; ${textStyle}">${c.label}</div>
                         <h4 class="mb-0 fw-bold" style="color: ${c.color};">${c.count}</h4>
                     </div>
                 </div>
@@ -155,18 +137,11 @@
         pCardsHtml += '</div>';
 
         const unassignedCount = adminCounts['Unassigned'];
-        let searchHtml = `
-            <div class="input-group input-group-sm shadow-sm" style="max-width: 250px; border-radius: 20px; overflow: hidden;">
-                <span class="input-group-text bg-white border-end-0 px-2"><i class="fa-solid fa-search text-muted"></i></span>
-                <input type="text" id="pSearchInput" class="form-control border-start-0 ps-0 shadow-none" placeholder="ค้นหาชื่อ, เบอร์โทร..." value="${state.pSearch}" oninput="handlePValueSearch(this.value)">
-                <button id="pSearchClearBtn" class="btn btn-white border-top border-bottom border-end text-muted shadow-none" style="display: ${state.pSearch ? 'block' : 'none'};" onclick="clearPValueSearch()"><i class="fa-solid fa-xmark"></i></button>
-            </div>
-        `;
 
         let adminBtnsHtml = `
             <div class="d-flex align-items-center gap-2 overflow-auto" style="white-space: nowrap;">
                 <span class="fw-bold text-muted small me-1"><i class="fa-solid fa-filter text-primary me-1"></i> ดูเคสของ:</span>
-                <button class="btn btn-sm ${state.pAdminFilter === 'All' ? 'btn-dark shadow-sm' : 'btn-outline-secondary bg-white'} rounded-pill px-3 fw-bold" onclick="setAdminFilter('All')">ทั้งหมด (${pCounts.Total})</button>
+                <button class="btn btn-sm ${state.pAdminFilter === 'All' ? 'btn-dark shadow-sm' : 'btn-outline-secondary bg-white'} rounded-pill px-3 fw-bold" onclick="setAdminFilter('All')">ทั้งหมด</button>
                 <button class="btn btn-sm ${state.pAdminFilter === 'Unassigned' ? 'btn-danger shadow-sm' : 'btn-outline-danger bg-white'} rounded-pill px-3 fw-bold" onclick="setAdminFilter('Unassigned')">รอจ่ายงาน (${unassignedCount})</button>
         `;
         
@@ -178,23 +153,90 @@
         });
         adminBtnsHtml += `</div>`;
 
-        let bulkAssignHtml = `
-            <button class="btn btn-sm ${unassignedCount > 0 ? 'btn-primary' : 'btn-secondary'} fw-bold shadow-sm px-3 py-1 ms-auto" 
-                    onclick="triggerBulkAutoAssign()" ${unassignedCount === 0 ? 'disabled' : ''}>
-                <i class="fa-solid fa-wand-magic-sparkles text-warning me-1"></i> 
-                สุ่มจ่ายงาน (${unassignedCount})
-            </button>`;
-
-        let toolbarHtml = `
-        <div class="d-flex flex-wrap align-items-center gap-3 mb-4 bg-white p-2 px-3 rounded shadow-sm border">
-            ${searchHtml}
-            <div class="vr d-none d-md-block text-muted" style="width: 2px; opacity: 0.15;"></div>
-            ${adminBtnsHtml}
-            ${bulkAssignHtml}
+        // 🌟 อัปเกรด UI แถบเครื่องมือให้เป็นแบบ Card (สไตล์ PRS) 🌟
+        let controlsHtml = `
+        <div class="card border-0 shadow-sm mb-4">
+            <div class="card-body p-3">
+                <div class="row g-3 align-items-end">
+                    <div class="col-md-3">
+                        <label class="form-label small text-muted fw-bold">ช่วงวันที่รับสมัคร</label>
+                        <div class="input-group">
+                            <span class="input-group-text bg-light border-end-0"><i class="far fa-calendar-alt text-primary"></i></span>
+                            <input type="text" class="form-control border-start-0 ps-0 shadow-none bg-white" id="pValueDateFilterInput" placeholder="เลือกช่วงเวลา..." readonly>
+                            <button class="btn btn-light border-start-0 text-muted" type="button" onclick="clearPValueDateFilter()" title="ล้างค่า"><i class="fas fa-times"></i></button>
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label small text-muted fw-bold">ค้นหา</label>
+                        <div class="input-group">
+                            <span class="input-group-text bg-light border-end-0"><i class="fas fa-search text-muted"></i></span>
+                            <input type="text" id="pSearchInput" class="form-control border-start-0 ps-0 shadow-none" placeholder="ค้นหาชื่อ, เบอร์โทร..." value="${state.pSearch}">
+                            <button id="pSearchClearBtn" class="btn btn-white border-top border-bottom border-end text-muted shadow-none" style="display: ${state.pSearch ? 'block' : 'none'};" onclick="clearPValueSearch()"><i class="fa-solid fa-xmark"></i></button>
+                        </div>
+                    </div>
+                    <div class="col-md-5 text-end d-flex gap-2 justify-content-end align-items-end">
+                        <button class="btn btn-primary-theme rounded-pill fw-bold shadow-sm" onclick="triggerBulkAutoAssign()" ${unassignedCount === 0 ? 'disabled' : ''}>
+                            <i class="fa-solid fa-wand-magic-sparkles text-warning me-1"></i> สุ่มจ่ายงาน (${unassignedCount})
+                        </button>
+                        <button class="btn btn-soft-success rounded-pill fw-bold shadow-sm px-3" onclick="exportPValueReport()">
+                            <i class="fas fa-file-excel me-1"></i> Export
+                        </button>
+                    </div>
+                </div>
+                <div class="row mt-3 pt-3 border-top">
+                    <div class="col-12">
+                        ${adminBtnsHtml}
+                    </div>
+                </div>
+            </div>
         </div>`;
 
         const container = document.getElementById('pValueDashboardCards');
-        if (container) container.innerHTML = pCardsHtml + toolbarHtml;
+        if (container) container.innerHTML = pCardsHtml + controlsHtml;
+
+        // 🌟 Initialize Flatpickr 🌟
+        if (typeof flatpickr !== 'undefined') {
+            const el = document.getElementById('pValueDateFilterInput');
+            if (el) {
+                if (pValueDateFilterControl) pValueDateFilterControl.destroy();
+                
+                let defaultDates = null;
+                if (state.pValDateRange && state.pValDateRange.start && state.pValDateRange.end) {
+                    defaultDates = [state.pValDateRange.start, state.pValDateRange.end];
+                }
+
+                pValueDateFilterControl = flatpickr(el, {
+                    locale: "th",
+                    mode: "range",
+                    dateFormat: "d/m/Y",
+                    defaultDate: defaultDates,
+                    onChange: function(selectedDates) {
+                        if (selectedDates.length === 2) {
+                            const start = selectedDates[0]; start.setHours(0,0,0,0);
+                            const end = selectedDates[1]; end.setHours(23,59,59,999);
+                            state.pValDateRange = { start, end };
+                            state.pValueCurrentPage = 1;
+                            applyPValueFilters();
+                        } else if (selectedDates.length === 0) {
+                            state.pValDateRange = { start: null, end: null };
+                            state.pValueCurrentPage = 1;
+                            applyPValueFilters();
+                        }
+                    }
+                });
+            }
+        }
+
+        // 🌟 ผูก Event Listener แบบ Debounce สำหรับช่องค้นหา
+        const searchInputEl = document.getElementById('pSearchInput');
+        if (searchInputEl) {
+            const debounceFunc = window.debounce || function(func, wait) {
+                let timeout; return function(...args) { clearTimeout(timeout); timeout = setTimeout(() => func.apply(this, args), wait); };
+            };
+            searchInputEl.addEventListener('input', debounceFunc(function(e) {
+                handlePValueSearch(e.target.value);
+            }, 350));
+        }
 
         applyPValueFilters();
     }
@@ -248,6 +290,7 @@
             });
         }
 
+        // 🌟 กรอง P-Value (ซ่อน P00 ในโหมด All)
         if (state.pValFilter !== 'All') {
             if (state.pValFilter === 'Waiting') {
                 filteredLeads = filteredLeads.filter(l => {
@@ -257,6 +300,12 @@
             } else {
                 filteredLeads = filteredLeads.filter(l => (l.P_Value === state.pValFilter || l.p_value === state.pValFilter || l.pvalue === state.pValFilter));
             }
+        } else {
+            // เมื่อเลือก 'All' ให้แสดงทุกอย่างยกเว้น P00
+            filteredLeads = filteredLeads.filter(l => {
+                const p = l.P_Value || l.p_value || l.pvalue;
+                return p !== 'P00';
+            });
         }
 
         if (state.pSearch.trim() !== '') {
@@ -269,20 +318,80 @@
             });
         }
 
+        // 🌟 บังคับเรียงลำดับ: ข้อมูลใหม่ล่าสุดต้องอยู่บนสุดเสมอ (เหมือนหน้า Leads) 🌟
+        filteredLeads.sort((a, b) => {
+            let dateA = a.created_at ? new Date(a.created_at).getTime() : 0;
+            let dateB = b.created_at ? new Date(b.created_at).getTime() : 0;
+            
+            // ป้องกัน Error กรณี Date Parse ไม่สำเร็จ
+            if (isNaN(dateA)) dateA = 0;
+            if (isNaN(dateB)) dateB = 0;
+            
+            // เรียงตามวันที่อัปเดตล่าสุด
+            if (dateA !== dateB) {
+                return dateB - dateA; 
+            }
+            
+            // กรณีสร้างพร้อมกัน (ข้อมูลเก่า Import) -> เรียงตามวันที่ลงทะเบียน (RecordDate)
+            const parseRDate = (rd) => {
+                if(!rd) return 0;
+                if(rd.includes('/')) {
+                    const p = rd.split('/');
+                    return new Date(p[2], p[1]-1, p[0]).getTime();
+                }
+                let parsed = new Date(rd).getTime();
+                return isNaN(parsed) ? 0 : parsed;
+            };
+            
+            let rDateA = parseRDate(a.RecordDate || a.record_date || a.recorddate);
+            let rDateB = parseRDate(b.RecordDate || b.record_date || b.recorddate);
+            
+            if (rDateA !== rDateB) {
+                return rDateB - rDateA;
+            }
+            
+            // หากวันที่รับสมัครเท่ากันอีก ให้เรียงตามตัวเลขใน Lead_ID ถอยหลัง (ใหม่ขึ้นก่อน)
+            let strA = String(a.Lead_ID || a.lead_id || a.leadid || '');
+            let strB = String(b.Lead_ID || b.lead_id || b.leadid || '');
+            
+            let numA = parseInt(strA.replace(/\D/g, '')) || 0;
+            let numB = parseInt(strB.replace(/\D/g, '')) || 0;
+            
+            if (numA !== numB) {
+                return numB - numA; 
+            }
+            
+            return strB.localeCompare(strA);
+        });
+
         const clearBtn = document.getElementById('pSearchClearBtn');
         if (clearBtn) clearBtn.style.display = state.pSearch ? 'block' : 'none';
 
         renderPValueTable(filteredLeads);
     }
 
-    function setPValueFilter(val) { state.pValFilter = val; renderPValueDashboard(); }
-    function setAdminFilter(val) { state.pAdminFilter = val; renderPValueDashboard(); }
-    function handlePValueSearch(val) { state.pSearch = val; applyPValueFilters(); }
+    function setPValueFilter(val) { state.pValFilter = val; state.pValueCurrentPage = 1; renderPValueDashboard(); }
+    function setAdminFilter(val) { state.pAdminFilter = val; state.pValueCurrentPage = 1; renderPValueDashboard(); }
+    
+    function handlePValueSearch(val) { 
+        state.pSearch = val; 
+        state.pValueCurrentPage = 1; 
+        applyPValueFilters(); 
+    }
     
     function clearPValueSearch() { 
         state.pSearch = ''; 
+        state.pValueCurrentPage = 1; 
         const el = document.getElementById('pSearchInput');
         if(el) el.value = '';
+        applyPValueFilters(); 
+    }
+
+    // 🌟 ฟังก์ชันเปลี่ยนหน้า
+    window.changePValuePage = function(pageNumber, event) {
+        if(event) event.preventDefault();
+        if(pageNumber < 1) pageNumber = 1; // ดักจับป้องกันหน้าติดลบ
+        state.pValueCurrentPage = pageNumber;
         applyPValueFilters(); 
     }
 
@@ -290,12 +399,25 @@
         const tbody = document.getElementById('pValueTableBody');
         if (!tbody) return;
 
-        if(data.length === 0) {
-            tbody.innerHTML = `<tr><td colspan="10" class="text-center py-5 text-muted"><i class="fa-solid fa-inbox fs-3 mb-2 d-block"></i> ไม่พบรายชื่อผู้สมัครในหมวดหมู่นี้</td></tr>`;
+        // 🌟 คำนวณข้อมูลตามหน้า (Pagination)
+        const totalItems = data.length;
+        const totalPages = Math.ceil(totalItems / PVALUE_ITEMS_PER_PAGE) || 1;
+        
+        if (state.pValueCurrentPage < 1) state.pValueCurrentPage = 1;
+        if (state.pValueCurrentPage > totalPages) state.pValueCurrentPage = totalPages;
+
+        const startIndex = (state.pValueCurrentPage - 1) * PVALUE_ITEMS_PER_PAGE;
+        const endIndex = startIndex + PVALUE_ITEMS_PER_PAGE;
+        const paginatedData = data.slice(startIndex, endIndex);
+
+        if(paginatedData.length === 0) {
+            tbody.innerHTML = `<tr><td colspan="11" class="text-center py-5 text-muted"><i class="fa-solid fa-inbox fs-3 mb-2 d-block"></i> ไม่พบรายชื่อผู้สมัครในหมวดหมู่นี้</td></tr>`;
+            removePValuePagination();
             return;
         }
 
-        tbody.innerHTML = data.map((row, index) => {
+        tbody.innerHTML = paginatedData.map((row, index) => {
+            const actualIndex = startIndex + index + 1; // เลขลำดับอิงตามข้อมูลรวมทั้งหมด
             const leadId = row.Lead_ID || row.lead_id || row.leadid;
             const beneatIcon = `<svg width="16" height="16" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg" class="me-1"><path d="M50 5C25.1 5 5 25.1 5 50c0 10.4 3.6 20 9.6 27.6L10 95l18.4-4.8c7 3.1 14.8 4.8 23.1 4.8 24.9 0 45-20.1 45-45S74.9 5 50 5z" fill="#3bc2d6"/><text x="48" y="70" font-family="Arial, sans-serif" font-weight="900" font-size="50" fill="#FFFFFF" text-anchor="middle" transform="rotate(-8 50 50)">B</text></svg>`;
             
@@ -305,10 +427,8 @@
             const age = row.Age || row.age;
             const ageDisplay = age ? ` <span class="badge bg-light text-secondary border ms-1 fw-normal" style="font-size: 0.75rem;">อายุ ${age} ปี</span>` : '';
 
-            // 🌟 ดึงข้อมูลแอดมินด้วยฟังก์ชันใหม่ เพื่อโชว์ในตาราง
             const adm = getEffectiveAssignedAdmin(row);
             let adminCell = '';
-            
             if (!adm || adm === 'Auto / รอ Assign' || adm === 'Auto' || adm === 'auto' || String(adm).trim() === '') {
                 adminCell = `
                     <div class="text-center" onclick="event.stopPropagation()">
@@ -336,36 +456,37 @@
             else if(bgCheckVal === 'กำลังตรวจ') bgCheckDisplay = `<span class="badge bg-warning text-dark">กำลังตรวจ</span>`;
             else if(bgCheckVal.includes('ไม่ผ่าน')) bgCheckDisplay = `<span class="badge bg-danger">ไม่ผ่าน</span>`;
 
-            const refId = row.Referrer || row.referrer;
-            let referrerDisplay = `<span class="text-muted">-</span>`;
-            if (refId) {
-                const matchedRef = state.referrers?.find(r => r.Ref_ID === refId);
-                if (matchedRef) {
-                    referrerDisplay = `<span class="text-secondary fw-bold small">${matchedRef.Ref_Name}</span>`;
-                } else {
-                    referrerDisplay = `<span class="text-secondary fw-bold small">${refId}</span>`; 
-                }
-            }
+            const ref = row.Referrer || row.referrer;
+            const referrerDisplay = ref ? `<span class="text-secondary fw-bold small">${ref}</span>` : `<span class="text-muted">-</span>`;
 
             const nts = row.Notes || row.notes || '-';
             const encodedNote = encodeURIComponent(nts);
 
+            // 🌟 แมปปิ้งสี P-Value ให้แยกสีตามค่า P ชัดเจน 🌟
             const pval = row.P_Value || row.p_value || row.pvalue;
-            let pvalDisplay = pval ? `<span class="badge bg-success">${pval}</span>` : `<span class="badge bg-warning text-dark">รอประเมิน</span>`;
-            
-            // เปลี่ยนสี P00 ให้เป็นสีแดง เพื่อให้เห็นชัดเจน
-            if (pval === 'P00') {
-                pvalDisplay = `<span class="badge bg-danger">${pval}</span>`;
+            let pvalDisplay = `<span class="badge bg-warning text-dark shadow-sm">รอประเมิน</span>`;
+            if (pval) {
+                let badgeClass = 'bg-secondary';
+                if (pval === 'P100') badgeClass = 'bg-success';
+                else if (pval === 'P90') badgeClass = 'bg-primary';
+                else if (pval === 'P80') badgeClass = 'bg-info text-dark';
+                else if (pval === 'P50') badgeClass = 'bg-warning text-dark';
+                else if (pval === 'P40') badgeClass = 'bg-secondary';
+                else if (pval === 'P00') badgeClass = 'bg-danger';
+                
+                pvalDisplay = `<span class="badge ${badgeClass} shadow-sm">${pval}</span>`;
             }
 
             const fullName = row.FullName || row.full_name || row.fullname || '-';
             const phoneStr = row.Phone || row.phone || '-';
             const jobTypeStr = row.JobType || row.job_type || row.jobtype || '-';
+            
+            // 🌟 เพิ่มคอลัมน์ ช่องทาง (Channel) ตามที่ข้อมูลในตารางขาดหาย 🌟
             const channelStr = row.Channel || row.channel || '-';
 
             return `
             <tr>
-                <td class="fw-bold text-center text-muted">${index + 1}</td>
+                <td class="fw-bold text-center text-muted">${actualIndex}</td>
                 <td class="fw-bold">${fullName}${ageDisplay}</td>
                 <td>
                     <div class="text-nowrap"><i class="fa-solid fa-phone text-success small"></i> ${phoneStr}</div>
@@ -399,7 +520,171 @@
             </tr>
             `;
         }).join('');
+
+        renderPValuePagination(totalItems, totalPages, startIndex, endIndex);
     }
+
+    function renderPValuePagination(totalItems, totalPages, startIndex, endIndex) {
+        const tableContainer = document.querySelector('#pValueTableBody').closest('.table-responsive');
+        if (!tableContainer) return;
+
+        let paginationDiv = document.getElementById('pValuePaginationFooter');
+        if (!paginationDiv) {
+            paginationDiv = document.createElement('div');
+            paginationDiv.id = 'pValuePaginationFooter';
+            paginationDiv.className = 'd-flex justify-content-between align-items-center p-3 border-top bg-white';
+            tableContainer.parentNode.insertBefore(paginationDiv, tableContainer.nextSibling);
+        }
+
+        const showingEnd = Math.min(endIndex, totalItems);
+        const showingStart = totalItems === 0 ? 0 : startIndex + 1;
+
+        paginationDiv.innerHTML = `
+            <div class="small text-muted fw-bold">
+                แสดง <span class="text-dark">${showingStart} - ${showingEnd}</span> จากทั้งหมด <span class="text-primary">${totalItems}</span> รายการ
+            </div>
+            <nav aria-label="Page navigation">
+                <ul class="pagination pagination-sm mb-0 shadow-sm">
+                    <li class="page-item ${state.pValueCurrentPage <= 1 ? 'disabled' : ''}">
+                        <a class="page-link text-dark fw-bold" href="#" onclick="changePValuePage(${state.pValueCurrentPage - 1}, event)">ก่อนหน้า</a>
+                    </li>
+                    <li class="page-item active">
+                        <span class="page-link bg-primary border-primary fw-bold px-3">หน้า ${state.pValueCurrentPage} / ${totalPages}</span>
+                    </li>
+                    <li class="page-item ${state.pValueCurrentPage >= totalPages ? 'disabled' : ''}">
+                        <a class="page-link text-dark fw-bold" href="#" onclick="changePValuePage(${state.pValueCurrentPage + 1}, event)">ถัดไป</a>
+                    </li>
+                </ul>
+            </nav>
+        `;
+    }
+
+    function removePValuePagination() {
+        const paginationDiv = document.getElementById('pValuePaginationFooter');
+        if (paginationDiv) paginationDiv.remove();
+    }
+
+    // ==========================================
+    // 🌟 2.5 Export Report (ระบบ Export รวม P00) เป็น Excel
+    // ==========================================
+    window.exportPValueReport = function() {
+        if (!state.leads || state.leads.length === 0) return;
+
+        // ดึงเฉพาะคนที่ถูกโอนเข้ามาหน้าประเมิน P-Value
+        const qualifiedLeads = state.leads.filter(l => {
+            const res = l.ContactResult || l.contact_result || l.contactresult || '';
+            const pVal = l.P_Value || l.p_value || l.pvalue;
+            return (res === 'Add Line เรียบร้อย' || res === 'แอดไลน์แล้ว') || res.includes('ไม่ผ่านเกณฑ์') || (pVal && String(pVal).trim() !== '');
+        });
+
+        let exportData = qualifiedLeads;
+
+        // กรองตาม "วันที่ประเมิน" (อิงตามตัวกรองบนหน้าเว็บ)
+        if (state.pValDateRange && state.pValDateRange.start && state.pValDateRange.end) {
+            exportData = exportData.filter(l => {
+                const rDate = l.RecordDate || l.record_date || l.recorddate;
+                if (!rDate) return false;
+                
+                let rowDate;
+                if (rDate.includes('/')) {
+                    const parts = rDate.split('/');
+                    rowDate = new Date(parts[2], parts[1] - 1, parts[0]);
+                } else {
+                    rowDate = new Date(rDate);
+                }
+
+                if (isNaN(rowDate.getTime())) return false;
+                rowDate.setHours(0,0,0,0);
+                
+                return rowDate >= state.pValDateRange.start && rowDate <= state.pValDateRange.end;
+            });
+        }
+
+        // กรองตาม Admin / ค้นหา (เพื่อให้ข้อมูล Export ตรงกับที่ผู้ใช้ต้องการดู)
+        // ⚠️ แต่ไม่กรอง P00 ทิ้ง เพื่อให้ข้อมูลครบถ้วนตามที่ร้องขอ
+        if (state.pAdminFilter === 'Unassigned') {
+            exportData = exportData.filter(l => {
+                const a = getEffectiveAssignedAdmin(l);
+                return !a || a === 'Auto / รอ Assign' || a === 'Auto' || a === 'auto' || String(a).trim() === '';
+            });
+        } else if (state.pAdminFilter !== 'All') {
+            const selAdmin = state.admins.find(a => a.email === state.pAdminFilter);
+            const selName = selAdmin ? selAdmin.name : state.pAdminFilter;
+            
+            exportData = exportData.filter(l => {
+                const a = getEffectiveAssignedAdmin(l);
+                return a === state.pAdminFilter || a === selName;
+            });
+        }
+
+        if (state.pSearch.trim() !== '') {
+            const query = state.pSearch.toLowerCase().trim();
+            exportData = exportData.filter(l => {
+                const name = l.FullName || l.full_name || l.fullname || '';
+                const phone = l.Phone || l.phone || '';
+                return name.toLowerCase().includes(query) || phone.toLowerCase().includes(query);
+            });
+        }
+
+        if (exportData.length === 0) {
+            Swal.fire('ไม่พบข้อมูล', 'ไม่มีข้อมูลสำหรับช่วงเวลาหรือเงื่อนไขที่เลือก', 'info');
+            return;
+        }
+
+        // สร้างข้อมูลสำหรับ Excel (Array of Arrays)
+        let excelData = [
+            ["รหัส", "วันที่ลงทะเบียน", "ชื่อ-นามสกุล", "เบอร์โทร", "ช่องทาง", "จังหวัด", "เขต/อำเภอ", "ประเภทงาน", "สถานะติดต่อ", "P-Value", "แคมเปญ/โปรโมชั่น", "ผู้แนะนำ", "ผู้รับผิดชอบ", "หมายเหตุ"]
+        ];
+        
+        exportData.forEach(row => {
+            const leadId = row.Lead_ID || row.lead_id || row.leadid || '';
+            const rDate = row.RecordDate || row.record_date || row.recorddate || '';
+            const name = row.FullName || row.full_name || row.fullname || '';
+            const phone = row.Phone || row.phone || '';
+            const channel = row.Channel || row.channel || '';
+            const prov = row.Province || row.province || '';
+            const dist = row.District || row.district || '';
+            const jobType = row.JobType || row.job_type || row.jobtype || '';
+            const cRes = row.ContactResult || row.contact_result || row.contactresult || '';
+            const pVal = row.P_Value || row.p_value || row.pvalue || 'รอประเมิน';
+            const promo = row.Promo || row.promo_id || row.promoid || row.promo || '';
+            const ref = row.Referrer || row.referrer || '';
+            
+            const adm = getEffectiveAssignedAdmin(row);
+            let adminName = adm;
+            const matchedAdmin = state.admins.find(a => a.email === adm || a.name === adm);
+            if (matchedAdmin && matchedAdmin.name) adminName = matchedAdmin.name; 
+
+            const note = row.Notes || row.notes || '';
+
+            excelData.push([
+                leadId, rDate, name, phone, channel, prov, dist, jobType, cRes, pVal, promo, ref, adminName, note
+            ]);
+        });
+
+        const timestamp = new Date().toISOString().slice(0,10);
+
+        // ตรวจสอบว่ามีไลบรารี XLSX (SheetJS) หรือไม่ ถ้ามีให้โหลดเป็น .xlsx
+        if (typeof XLSX !== 'undefined') {
+            const ws = XLSX.utils.aoa_to_sheet(excelData);
+            const wb = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(wb, ws, "P_Value_Report");
+            XLSX.writeFile(wb, `P_Value_Report_${timestamp}.xlsx`);
+        } else {
+            // Fallback เป็น CSV กรณีไม่ได้ติดตั้ง XLSX
+            let csvContent = "";
+            excelData.forEach(row => {
+                const rowStr = row.map(f => `"${String(f || "").replace(/"/g, '""').replace(/\n/g, ' ')}"`).join(",");
+                csvContent += rowStr + "\n";
+            });
+            const blob = new Blob(["\ufeff" + csvContent], { type: 'text/csv;charset=utf-8;' });
+            const link = document.createElement("a");
+            link.href = URL.createObjectURL(blob);
+            link.download = `P_Value_Report_${timestamp}.csv`;
+            link.click();
+        }
+    };
+
 
     // ==========================================
     // 👤 2. ระบบจ่ายงานแบบกรองสถานะนักพัฒนาออก (Dev Mode exclusion)
@@ -409,7 +694,7 @@
             const cr = l.ContactResult || l.contact_result || l.contactresult || '';
             const pVal = l.P_Value || l.p_value || l.pvalue;
             
-            // 🌟 เช็คด้วยฟังก์ชันดึงแอดมิน เพื่อข้าม P00 ที่ถูกผูกกับคนคีย์ไปแล้ว 
+            // เช็คด้วยฟังก์ชันดึงแอดมิน เพื่อข้าม P00 ที่ถูกผูกกับคนคีย์ไปแล้ว 
             const a = getEffectiveAssignedAdmin(l);
             
             const isQualified = (cr === 'Add Line เรียบร้อย' || cr === 'แอดไลน์แล้ว') || cr.includes('ไม่ผ่านเกณฑ์') || (pVal && String(pVal).trim() !== '');
@@ -586,7 +871,6 @@
         
         const form = document.getElementById('assessmentForm');
         if (form) {
-            // 🌟 1. ยัดข้อมูลโปรโมชั่นลง Dropdown
             const promoSelect = form.elements['promo'];
             if (promoSelect) {
                 promoSelect.innerHTML = '<option value="" selected>-- ไม่ระบุโปรโมชั่น --</option>';
@@ -615,12 +899,10 @@
                 promoSelect.value = currentPromoId;
             }
 
-            // 🌟 2. ยัดข้อมูล 'ผู้แนะนำ (Referrers)' ลง Dropdown 🌟
             const referrerSelect = form.elements['referrer'] || document.getElementById('assessReferrerSelect');
             if (referrerSelect) {
                 referrerSelect.innerHTML = '<option value="" selected>-- เลือก --</option>';
                 
-                // ดึงเฉพาะที่มีสถานะ Active มาแสดง
                 const activeReferrers = (state.referrers || []).filter(r => r.Calculated_Status === 'Active');
                 
                 activeReferrers.forEach(r => {
@@ -633,14 +915,12 @@
                     const isExist = activeReferrers.some(r => r.Ref_ID === currentReferrerId);
                     
                     if (!isExist) {
-                        // ค้นหาว่าเป็นโค้ดที่เคยมีแต่หมดอายุไปแล้วหรือเปล่า
                         const oldRef = state.referrers?.find(r => r.Ref_ID === currentReferrerId);
                         if (oldRef) {
                             const opt = new Option(`${oldRef.Ref_Name} (หมดเวลา/ปิดใช้งาน)`, currentReferrerId);
                             opt.style.color = 'red';
                             referrerSelect.add(opt);
                         } else {
-                            // กรณีข้อมูลเป็นข้อความเก่า (Legacy data เช่น "Walk-in" หรือ "เพื่อนแนะนำ")
                             const opt = new Option(`${currentReferrerId} (ข้อมูลเดิม)`, currentReferrerId);
                             opt.style.color = 'gray';
                             referrerSelect.add(opt);
@@ -650,7 +930,6 @@
                 referrerSelect.value = currentReferrerId;
             }
 
-            // 🌟 3. ยัดข้อมูล 'การตรวจประวัติ' ลง Dropdown 🌟
             const bgCheckSelect = form.elements['backgroundCheck'];
             if (bgCheckSelect && state.initialDropdowns?.BackgroundCheck && state.initialDropdowns.BackgroundCheck.length > 0) {
                 bgCheckSelect.innerHTML = '<option value="" selected>-- เลือก --</option>';
@@ -659,7 +938,6 @@
                 });
             }
 
-            // 🌟 4. ยัดข้อมูล 'สถานะการอบรม' ลง Dropdown 🌟
             const trainStatusSelect = form.elements['trainingStatus'];
             if (trainStatusSelect && state.initialDropdowns?.TrainingStatus && state.initialDropdowns.TrainingStatus.length > 0) {
                 trainStatusSelect.innerHTML = '<option value="" selected>เลือก...</option>';
@@ -668,7 +946,6 @@
                 });
             }
 
-            // 🌟 5. ยัดข้อมูล 'โน้ตเพิ่มเติม (QuickTags)' ลงในปุ่มให้กด 🌟
             const tagsContainer = document.querySelector('#assessmentModal .tags-container');
             if (tagsContainer && state.initialDropdowns?.QuickTags && state.initialDropdowns.QuickTags.length > 0) {
                 tagsContainer.innerHTML = state.initialDropdowns.QuickTags.map(tag => 
@@ -689,6 +966,25 @@
     document.addEventListener('DOMContentLoaded', () => {
         const assessForm = document.getElementById('assessmentForm');
         if (assessForm) {
+            // 🌟 เพิ่ม Event Listener ให้ pValue เพื่อเปลี่ยนสถานะการอบรมอัตโนมัติ
+            const pValueInput = assessForm.elements['pValue'];
+            const trainingStatusInput = assessForm.elements['trainingStatus'];
+            if (pValueInput && trainingStatusInput) {
+                pValueInput.addEventListener('change', function() {
+                    if (this.value === 'P100') {
+                        // เช็คว่ามีตัวเลือก 'จองอบรม' หรือไม่ ถ้าไม่มีให้เพิ่มเข้าไปก่อน
+                        let hasOption = Array.from(trainingStatusInput.options).some(opt => opt.value === 'จองอบรม');
+                        if (!hasOption) {
+                            trainingStatusInput.add(new Option('จองอบรม', 'จองอบรม'));
+                        }
+                        trainingStatusInput.value = 'จองอบรม';
+                        
+                        trainingStatusInput.classList.add('border-success', 'text-success');
+                        setTimeout(() => trainingStatusInput.classList.remove('border-success', 'text-success'), 1500);
+                    }
+                });
+            }
+
             assessForm.addEventListener('submit', async function(e) {
                 e.preventDefault();
                 const fd = new FormData(this);
