@@ -4,45 +4,6 @@
         <!-- JS generates cards here -->
     </div>
 
-    <!-- 🌟 TOOLBAR: Search, Filter, Date 🌟 -->
-    <div class="d-flex flex-wrap align-items-center justify-content-between gap-3 mb-4 bg-white p-3 rounded-4 shadow-sm border border-light">
-        <div class="d-flex flex-wrap align-items-center gap-3">
-            <!-- Search Box -->
-            <div class="input-group input-group-sm shadow-sm position-relative" style="max-width: 250px;">
-                <span class="input-group-text bg-white border-end-0 px-3 rounded-start-pill"><i class="fa-solid fa-search text-muted"></i></span>
-                <input type="text" id="lSearchInput" class="form-control border-start-0 ps-0 pe-4 shadow-none rounded-end-pill" placeholder="ค้นหาชื่อ, เบอร์โทร..." oninput="handleLeadsSearch(this.value)">
-                <button id="lSearchClearBtn" class="btn btn-sm text-muted d-none position-absolute end-0 top-50 translate-middle-y border-0 shadow-none" style="z-index: 5; padding-right: 12px;" onclick="clearLeadsSearch()">
-                    <i class="fa-solid fa-circle-xmark opacity-75"></i>
-                </button>
-            </div>
-            
-            <!-- Channel Filter -->
-            <div class="input-group input-group-sm shadow-sm" style="width: auto;">
-                <span class="input-group-text bg-white text-muted border-end-0 px-3 rounded-start-pill"><i class="fa-solid fa-share-nodes"></i></span>
-                <select class="form-select border-start-0 fw-bold text-primary shadow-none rounded-end-pill pe-4" id="lChannelFilter" onchange="setLeadsChannelFilter(this.value)">
-                    <option value="All" selected>ทุกช่องทาง</option>
-                </select>
-            </div>
-        </div>
-        
-        <!-- Date Filter -->
-        <div class="d-flex align-items-center gap-2">
-            <label class="form-label mb-0 fw-bold text-muted small" style="white-space: nowrap;">วันที่บันทึก:</label>
-            <div class="input-group input-group-sm shadow-sm" style="width: 280px;">
-                <span class="input-group-text bg-white text-muted border-end-0 px-3 rounded-start-pill"><i class="fa-regular fa-calendar"></i></span>
-                <input type="text" class="form-control border-start-0 border-end-0 shadow-none rounded-0" id="dateFilter" placeholder="เลือกช่วงวันที่...">
-                
-                <!-- 🌟 เพิ่มปุ่ม "วันนี้" 🌟 -->
-                <button class="btn bg-light border border-start-0 border-end-0 text-primary fw-bold shadow-none px-3" style="border-color: #e2e8f0; font-size: 0.75rem;" type="button" onclick="setLeadsDateToToday()" title="เลือกเฉพาะของวันนี้">
-                    วันนี้
-                </button>
-                
-                <button class="btn bg-white border border-start-0 text-muted shadow-none rounded-end-pill px-3" style="border-color: #e2e8f0;" type="button" onclick="clearDateFilter()" title="ล้างตัวกรอง">
-                    <i class="fa-solid fa-xmark"></i>
-                </button>
-            </div>
-        </div>
-    </div>
 
     <!-- Data Table -->
     <div class="card shadow-sm border-0 mb-4 rounded-4">
@@ -123,12 +84,13 @@
                                     <label class="form-label fw-bold small text-muted">เบอร์ติดต่อ <span class="text-danger">*</span></label>
                                     <input type="tel" class="form-control" name="phone" id="phoneNumber" required placeholder="08X-XXX-XXXX">
                                 </div>
-
-                                <div class="mb-3">
-                                    <label class="form-label fw-bold small text-muted">ช่องทางที่ติดต่อมา <span class="text-danger">*</span></label>
+                                <div class="row mb-3">
+                                <div class="col-6">
+                                        <label class="form-label fw-bold small text-muted">ช่องทางที่ติดต่อมา <span class="text-danger">*</span></label>
                                     <select class="form-select" name="channel" id="channelSelect" required>
                                         <option value="" selected disabled>โหลดข้อมูลช่องทาง...</option>
                                     </select>
+                                </div>
                                 </div>
 
                                 <div class="mb-3">
